@@ -18,6 +18,7 @@ object SharedPrefsManager {
     const val KEY_ALLOWED_PACKAGES = "allowed_packages" // comma-separated
     const val KEY_PARACHUTES_COUNT = "parachutes_count"
     const val KEY_OWN_PACKAGE = "own_package"
+    const val KEY_STRICT_MODE = "strict_mode"
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -59,6 +60,13 @@ object SharedPrefsManager {
 
     fun getOwnPackage(ctx: Context): String =
         prefs(ctx).getString(KEY_OWN_PACKAGE, "com.blockwho.app") ?: "com.blockwho.app"
+
+    fun setStrictMode(ctx: Context, strict: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_STRICT_MODE, strict).apply()
+    }
+
+    fun isStrictMode(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_STRICT_MODE, true)
 
     fun clearSession(ctx: Context) {
         prefs(ctx).edit()

@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -21,9 +23,8 @@ import androidx.core.app.ServiceCompat
  * minimizes the app. It:
  * 1. Shows a persistent status-bar notification ("Session in progress").
  * 2. Holds a WakeLock-equivalent priority so Android doesn't kill the process.
- * 3. Receives START/STOP intents from MainActivity/WebView bridge.
- *
- * Fully compliant with Android 14 (API 34) Foreground Service types.
+ * 3. Includes an active background watchdog thread that verifies the foreground app
+ *    against the Suitcase allowed packages as a dual-layer backup to AccessibilityService.
  */
 class BlockerForegroundService : Service() {
 
@@ -65,6 +66,9 @@ class BlockerForegroundService : Service() {
         }
     }
 
+    private var watcherThread: Thread? = null
+    @Volatile private var isWatching = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -91,12 +95,14 @@ class BlockerForegroundService : Service() {
                         startForeground(NOTIFICATION_ID, notification)
                     }
                     Log.i(TAG, "Session foreground service started, ends at $endMs")
+                    startWatcher()
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to start foreground service", e)
                     try {
                         val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
                         val notification = buildSessionNotification(endMs)
                         startForeground(NOTIFICATION_ID, notification)
+                        startWatcher()
                     } catch (err: Throwable) {
                         Log.e(TAG, "Fallback startForeground also failed", err)
                     }
@@ -104,6 +110,9 @@ class BlockerForegroundService : Service() {
             }
             ACTION_STOP -> {
                 try {
+                    isWatching = false
+                    watcherThread?.interrupt()
+                    watcherThread = null
                     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     isRunning = false
@@ -114,6 +123,88 @@ class BlockerForegroundService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    /**
+     * Dual-layer backup watchdog:
+     * Periodically queries UsageStatsManager to catch and close unauthorized apps
+     * if the Accessibility Service is temporarily inactive.
+     */
+    private fun startWatcher() {
+        if (isWatching) return
+        isWatching = true
+        watcherThread = Thread {
+            Log.d(TAG, "Watchdog loop started")
+            while (isWatching && SharedPrefsManager.isSessionActive(this)) {
+                try {
+                    Thread.sleep(600)
+                    if (!isWatching || !SharedPrefsManager.isSessionActive(this)) break
+
+                    val endMs = SharedPrefsManager.getSessionEndMs(this)
+                    if (endMs > 0 && System.currentTimeMillis() >= endMs) {
+                        SharedPrefsManager.clearSession(this)
+                        stopSelf()
+                        break
+                    }
+
+                    // Only run watchdog fallback if accessibility service is not active
+                    if (!BlockerAccessibilityService.isRunning) {
+                        val topPackage = getForegroundPackage()
+                        if (topPackage != null) {
+                            val ownPackage = SharedPrefsManager.getOwnPackage(this)
+                            val allowed = SharedPrefsManager.getAllowedPackages(this)
+                            if (topPackage != ownPackage &&
+                                topPackage != "android" &&
+                                topPackage != "com.android.systemui" &&
+                                topPackage != "com.google.android.dialer" &&
+                                topPackage != "com.android.dialer" &&
+                                topPackage != "com.android.phone" &&
+                                !allowed.contains(topPackage)) {
+                                Log.w(TAG, "Watchdog found non-allowed foreground pkg: $topPackage")
+                                val bringIntent = Intent(applicationContext, MainActivity::class.java).apply {
+                                    addFlags(
+                                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                    )
+                                    putExtra("FROM_BLOCKER", true)
+                                    putExtra("BLOCKED_PKG", topPackage)
+                                }
+                                applicationContext.startActivity(bringIntent)
+                            }
+                        }
+                    }
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Throwable) {
+                    // ignore
+                }
+            }
+            isWatching = false
+        }.apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun getForegroundPackage(): String? {
+        return try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
+            val time = System.currentTimeMillis()
+            val events = usm.queryEvents(time - 2500, time)
+            var lastPkg: String? = null
+            val event = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
+                    event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    lastPkg = event.packageName
+                }
+            }
+            lastPkg
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     private fun buildSessionNotification(sessionEndMs: Long): Notification {
@@ -137,7 +228,7 @@ class BlockerForegroundService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("🔒 blockWho Session Active")
+            .setContentTitle("\uD83D\uDD12 blockWho Session Active")
             .setContentText(
                 if (remainingMins > 0) "$remainingMins min remaining · Stay focused"
                 else "Session in progress · Stay focused"
@@ -148,7 +239,6 @@ class BlockerForegroundService : Service() {
             .setContentIntent(tapPending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 
@@ -156,21 +246,22 @@ class BlockerForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "blockWho Session",
+                "Active Focus Session",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Persistent notification during active focus sessions"
+                description = "Shows progress during active focus lockdown"
                 setShowBadge(false)
-                enableLights(false)
                 enableVibration(false)
             }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val nm = getSystemService(NotificationManager::class.java)
             nm?.createNotificationChannel(channel)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        isWatching = false
+        watcherThread?.interrupt()
         isRunning = false
         Log.i(TAG, "BlockerForegroundService destroyed")
     }

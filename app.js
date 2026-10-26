@@ -30,9 +30,9 @@
     suitcaseApps: [
       { id: 'calc', name: 'Calculator Utility', icon: 'calculate', desc: 'Essential math calculations & conversions', packed: true },
       { id: 'scratchpad', name: 'Quick Scratchpad', icon: 'edit_note', desc: 'Distraction-free quick thoughts & notes', packed: true },
-      { id: 'maps', name: 'Google Maps', icon: 'map', desc: 'Transit routes & offline GPS navigation', packed: true },
+      { id: 'maps', name: 'Google Maps', icon: 'map', desc: 'Transit routes & offline GPS navigation', packed: true, pkg: 'com.google.android.apps.maps' },
       { id: 'audio', name: 'Focus Soundscape', icon: 'headphones', desc: '40Hz Gamma binaural beats & cabin noise', packed: true },
-      { id: 'phone', name: 'Emergency Calls', icon: 'call', desc: 'Direct phone dialer & family contacts', packed: true },
+      { id: 'phone', name: 'Emergency Calls', icon: 'call', desc: 'Direct phone dialer & family contacts', packed: true, pkg: 'com.google.android.dialer' },
       { id: 'reader', name: 'Document Reader', icon: 'menu_book', desc: 'Offline PDF references and reading', packed: false },
       { id: 'camera', name: 'Document Scanner', icon: 'photo_camera', desc: 'Quick document capture without social media', packed: false }
     ],
@@ -927,45 +927,188 @@
     });
   }
 
-  // ==========================================
+    // ==========================================
   // 8. SUITCASE MANAGEMENT & MINI-APPS
   // ==========================================
-  // Load real installed apps from the device (Android only)
-  function loadInstalledAppsIntoSuitcase() {
-    if (!window.AndroidBridge || typeof window.AndroidBridge.getInstalledApps !== 'function') return;
-    if (state._appsLoaded) return; // already fetched
-    try {
-      const raw = window.AndroidBridge.getInstalledApps();
-      const apps = JSON.parse(raw);
-      if (!Array.isArray(apps) || apps.length === 0) return;
 
-      // Keep our built-in mini-app tools at top, then append real installed apps
-      const existingIds = new Set(state.suitcaseApps.map(a => a.id));
-      apps.forEach(app => {
-        if (!existingIds.has(app.pkg)) {
+  // Synchronize current whitelisted packages to Android native layer in real-time
+  function syncNativeAllowedPackages() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.updateAllowedPackages === 'function') {
+      try {
+        const allowed = state.suitcaseApps
+          .filter(a => a.packed && a.pkg)
+          .map(a => a.pkg);
+        window.AndroidBridge.updateAllowedPackages(JSON.stringify(allowed));
+      } catch (e) {
+        console.warn('syncNativeAllowedPackages failed:', e);
+      }
+    }
+  }
+
+  // Pre-load / cache installed apps from device into catalog for the "+ Add App" modal
+  function loadInstalledAppsCatalog() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.getInstalledApps === 'function') {
+      try {
+        const raw = window.AndroidBridge.getInstalledApps();
+        const apps = JSON.parse(raw);
+        if (Array.isArray(apps) && apps.length > 0) {
+          state._installedAppsCatalog = apps;
+          return;
+        }
+      } catch (e) {
+        console.warn('getInstalledApps error:', e);
+      }
+    }
+    // Fallback catalog for web / desktop testing
+    if (!state._installedAppsCatalog || state._installedAppsCatalog.length === 0) {
+      state._installedAppsCatalog = [
+        { pkg: 'com.whatsapp', name: 'WhatsApp' },
+        { pkg: 'com.google.android.youtube', name: 'YouTube' },
+        { pkg: 'com.instagram.android', name: 'Instagram' },
+        { pkg: 'com.android.chrome', name: 'Google Chrome' },
+        { pkg: 'com.spotify.music', name: 'Spotify' },
+        { pkg: 'notion.id', name: 'Notion' },
+        { pkg: 'com.slack', name: 'Slack' },
+        { pkg: 'com.amazon.kindle', name: 'Amazon Kindle' },
+        { pkg: 'com.google.android.keep', name: 'Google Keep' },
+        { pkg: 'com.duolingo', name: 'Duolingo' },
+        { pkg: 'org.telegram.messenger', name: 'Telegram' },
+        { pkg: 'com.twitter.android', name: 'X / Twitter' },
+        { pkg: 'com.google.android.gm', name: 'Gmail' },
+        { pkg: 'com.google.android.apps.docs', name: 'Google Docs' },
+        { pkg: 'com.microsoft.todos', name: 'Microsoft To Do' },
+        { pkg: 'com.ticktick.task', name: 'TickTick' }
+      ];
+    }
+  }
+
+  // "+ Add App" Modal Handlers
+  function openAddAppModal() {
+    loadInstalledAppsCatalog();
+    const modal = document.getElementById('modal-add-suitcase-app');
+    const searchInput = document.getElementById('input-search-installed-apps');
+    if (searchInput) searchInput.value = '';
+    renderInstalledAppsPicker('');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    sound.playChime('click');
+    hapticFeedback(15);
+  }
+
+  function closeAddAppModal() {
+    const modal = document.getElementById('modal-add-suitcase-app');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    renderSuitcaseTab();
+    renderLockSuitcaseDock();
+    updateTimerInterface();
+  }
+
+  function renderInstalledAppsPicker(filterText) {
+    const list = document.getElementById('installed-apps-picker-list');
+    const countEl = document.getElementById('suitcase-modal-selected-count');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const query = (filterText || '').toLowerCase().trim();
+    const catalog = state._installedAppsCatalog || [];
+    const filtered = query
+      ? catalog.filter(a => a.name.toLowerCase().includes(query) || a.pkg.toLowerCase().includes(query))
+      : catalog;
+
+    const existingPkgs = new Set(state.suitcaseApps.filter(a => a.pkg).map(a => a.pkg));
+    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+    const customCount = state.suitcaseApps.filter(a => !builtinIds.has(a.id)).length;
+    if (countEl) countEl.innerText = customCount;
+
+    if (filtered.length === 0) {
+      list.innerHTML = `
+        <div class="p-6 text-center text-outline font-body-sm text-xs">
+          No matching apps found.
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach(app => {
+      const isAdded = existingPkgs.has(app.pkg);
+      const row = document.createElement('div');
+      row.className = 'p-2.5 rounded-lg bg-surface-container flex items-center justify-between border border-white/5 hover:border-white/15 transition-all';
+
+      const firstChar = (app.name && app.name.length > 0) ? app.name.charAt(0).toUpperCase() : 'A';
+
+      row.innerHTML = `
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <div class="w-8 h-8 rounded-full bg-surface-container-highest text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+            ${firstChar}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-label-sm text-white font-semibold truncate text-xs">${app.name}</div>
+            <div class="font-mono text-[9px] text-outline/60 truncate">${app.pkg}</div>
+          </div>
+        </div>
+        <button class="btn-toggle-add-app px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer flex-shrink-0 ml-2 ${
+          isAdded
+            ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-error/20 hover:text-error hover:border-error/30'
+            : 'bg-surface-container-high text-white hover:bg-primary hover:text-black'
+        }">
+          <span class="material-symbols-outlined text-[14px]">${isAdded ? 'check' : 'add'}</span>
+          <span>${isAdded ? 'Added' : 'Add'}</span>
+        </button>
+      `;
+
+      const btn = row.querySelector('.btn-toggle-add-app');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isAdded) {
+          // Remove from suitcase
+          state.suitcaseApps = state.suitcaseApps.filter(a => a.pkg !== app.pkg);
+        } else {
+          // Add to suitcase
           state.suitcaseApps.push({
             id: app.pkg,
             pkg: app.pkg,
             name: app.name,
             icon: 'apps',
             desc: app.pkg,
-            packed: false
+            packed: true,
+            isCustom: true
           });
-          existingIds.add(app.pkg);
         }
+        saveState();
+        syncNativeAllowedPackages();
+        updateSuitcaseCounters();
+        renderInstalledAppsPicker(query);
+        sound.playChime('click');
+        hapticFeedback(15);
       });
 
-      // Tag our built-in mini-apps with a null pkg so they are always whitelisted
-      state.suitcaseApps.forEach(a => {
-        if (!a.pkg) a.pkg = null;
-      });
+      list.appendChild(row);
+    });
+  }
 
-      state._appsLoaded = true;
-      saveState();
-      renderSuitcaseTab();
-    } catch (e) {
-      console.warn('getInstalledApps failed:', e);
-    }
+  // Hook up Add App Modal Buttons & Search Input
+  const btnOpenAddAppModal = document.getElementById('btn-open-add-app-modal');
+  if (btnOpenAddAppModal) {
+    btnOpenAddAppModal.addEventListener('click', openAddAppModal);
+  }
+  const btnCloseAddAppModal = document.getElementById('btn-close-add-app-modal');
+  if (btnCloseAddAppModal) {
+    btnCloseAddAppModal.addEventListener('click', closeAddAppModal);
+  }
+  const btnDoneAddAppModal = document.getElementById('btn-done-add-app-modal');
+  if (btnDoneAddAppModal) {
+    btnDoneAddAppModal.addEventListener('click', closeAddAppModal);
+  }
+  const searchInputApps = document.getElementById('input-search-installed-apps');
+  if (searchInputApps) {
+    searchInputApps.addEventListener('input', (e) => {
+      renderInstalledAppsPicker(e.target.value);
+    });
   }
 
   function updateSuitcaseCounters() {
@@ -1000,78 +1143,153 @@
       }
     }
 
-    state.suitcaseApps.forEach(app => {
-      const card = document.createElement('div');
-      card.className = 'p-3 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5 hover:border-white/15 transition-all';
+    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+    const builtinApps = state.suitcaseApps.filter(a => builtinIds.has(a.id));
+    const customApps = state.suitcaseApps.filter(a => !builtinIds.has(a.id));
 
-      const subtitle = app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id)
-        ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[160px] block">${app.pkg}</span>`
-        : `<span class="font-body-sm text-xs text-outline truncate block max-w-[180px]">${app.desc || ''}</span>`;
+    // Section 1: Built-In Focus Tools
+    const sec1Header = document.createElement('div');
+    sec1Header.className = 'pt-1 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
+    sec1Header.innerHTML = `<span>Built-in Tools (${builtinApps.length})</span>`;
+    container.appendChild(sec1Header);
 
-      const iconHtml = (app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id))
-        ? `<span class="material-symbols-outlined text-[20px]">android</span>`
-        : `<span class="material-symbols-outlined text-[20px]">${app.icon || 'apps'}</span>`;
+    builtinApps.forEach(app => {
+      container.appendChild(createSuitcaseAppCard(app, false));
+    });
 
-      card.innerHTML = `
-        <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer app-info-area">
-          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
-            ${iconHtml}
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="font-label-md text-primary font-bold truncate">${app.name}</div>
-            ${subtitle}
-          </div>
+    // Section 2: User Added Apps
+    const sec2Header = document.createElement('div');
+    sec2Header.className = 'pt-4 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
+    sec2Header.innerHTML = `
+      <span>Your Added Apps (${customApps.length})</span>
+      <button class="text-primary hover:underline text-[11px] font-bold flex items-center gap-0.5 cursor-pointer btn-sub-add-app">
+        <span class="material-symbols-outlined text-[13px]">add</span> Add More
+      </button>
+    `;
+    const subAddBtn = sec2Header.querySelector('.btn-sub-add-app');
+    if (subAddBtn) subAddBtn.addEventListener('click', openAddAppModal);
+    container.appendChild(sec2Header);
+
+    if (customApps.length === 0) {
+      const emptyCard = document.createElement('div');
+      emptyCard.className = 'p-4 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center space-y-2';
+      emptyCard.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-surface-container-high text-primary flex items-center justify-center mx-auto">
+          <span class="material-symbols-outlined text-[20px]">add_to_home_screen</span>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-          <button class="btn-test-app w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary flex items-center justify-center active:scale-95 transition-all cursor-pointer" title="Preview / Test ${app.name}" data-id="${app.id}">
-            <span class="material-symbols-outlined text-[16px]">visibility</span>
-          </button>
-          <label class="relative inline-flex items-center cursor-pointer p-1">
-            <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer suitcase-toggle">
-            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[6px] after:left-[6px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-          </label>
-        </div>
+        <div class="font-label-md text-primary font-bold text-xs">No Custom Apps Added</div>
+        <p class="font-body-sm text-[11px] text-outline max-w-[240px] mx-auto">Tap "+ Add App" to pick individual apps from your device to keep accessible during focus.</p>
+        <button class="btn-empty-add-app px-3.5 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer mt-1">
+          <span class="material-symbols-outlined text-[14px]">add</span>
+          <span>Add App</span>
+        </button>
       `;
+      emptyCard.querySelector('.btn-empty-add-app').addEventListener('click', openAddAppModal);
+      container.appendChild(emptyCard);
+    } else {
+      customApps.forEach(app => {
+        container.appendChild(createSuitcaseAppCard(app, true));
+      });
+    }
+  }
 
-      const input = card.querySelector('input');
-      const testBtn = card.querySelector('.btn-test-app');
-      const infoArea = card.querySelector('.app-info-area');
+  function createSuitcaseAppCard(app, isCustom) {
+    const card = document.createElement('div');
+    card.className = 'p-3 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5 hover:border-white/15 transition-all';
 
-      // 1. Toggle switch handler
-      input.addEventListener('change', (e) => {
-        app.packed = e.target.checked;
+    const subtitle = app.pkg && isCustom
+      ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[150px] block">${app.pkg}</span>`
+      : `<span class="font-body-sm text-xs text-outline truncate block max-w-[170px]">${app.desc || ''}</span>`;
+
+    const iconHtml = isCustom
+      ? `<span class="material-symbols-outlined text-[20px]">android</span>`
+      : `<span class="material-symbols-outlined text-[20px]">${app.icon || 'apps'}</span>`;
+
+    const deleteBtnHtml = isCustom
+      ? `<button class="btn-remove-custom-app w-8 h-8 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center active:scale-95 transition-all cursor-pointer" title="Remove ${app.name} from Suitcase" data-id="${app.id}">
+           <span class="material-symbols-outlined text-[15px]">delete</span>
+         </button>`
+      : '';
+
+    card.innerHTML = `
+      <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer app-info-area">
+        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+          ${iconHtml}
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="font-label-md text-primary font-bold truncate">${app.name}</div>
+          ${subtitle}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+        <button class="btn-test-app w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary flex items-center justify-center active:scale-95 transition-all cursor-pointer" title="Preview / Test ${app.name}" data-id="${app.id}">
+          <span class="material-symbols-outlined text-[16px]">visibility</span>
+        </button>
+        ${deleteBtnHtml}
+        <label class="relative inline-flex items-center cursor-pointer p-1">
+          <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer suitcase-toggle">
+          <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[6px] after:left-[6px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+        </label>
+      </div>
+    `;
+
+    const input = card.querySelector('input');
+    const testBtn = card.querySelector('.btn-test-app');
+    const infoArea = card.querySelector('.app-info-area');
+    const removeBtn = card.querySelector('.btn-remove-custom-app');
+
+    // 1. Toggle switch handler
+    input.addEventListener('change', (e) => {
+      app.packed = e.target.checked;
+      saveState();
+      syncNativeAllowedPackages();
+      updateSuitcaseCounters();
+      updateTimerInterface();
+      renderLockSuitcaseDock();
+      sound.playChime('click');
+      hapticFeedback(15);
+    });
+
+    // 2. Info area click: toggles checkbox
+    if (infoArea) {
+      infoArea.addEventListener('click', () => {
+        input.checked = !input.checked;
+        app.packed = input.checked;
         saveState();
+        syncNativeAllowedPackages();
         updateSuitcaseCounters();
         updateTimerInterface();
         renderLockSuitcaseDock();
         sound.playChime('click');
         hapticFeedback(15);
       });
+    }
 
-      // 2. Info area click: toggles checkbox
-      if (infoArea) {
-        infoArea.addEventListener('click', () => {
-          input.checked = !input.checked;
-          app.packed = input.checked;
-          saveState();
-          updateSuitcaseCounters();
-          updateTimerInterface();
-          renderLockSuitcaseDock();
-          sound.playChime('click');
-          hapticFeedback(15);
-        });
-      }
+    // 3. Test / Preview button handler
+    if (testBtn) {
+      testBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMiniApp(app.id);
+      });
+    }
 
-      // 3. Test / Preview button handler: opens mini-app modal
-      if (testBtn) {
-        testBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openMiniApp(app.id);
-        });
-      }
+    // 4. Remove custom app handler
+    if (removeBtn) {
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.suitcaseApps = state.suitcaseApps.filter(a => a.id !== app.id);
+        saveState();
+        syncNativeAllowedPackages();
+        updateSuitcaseCounters();
+        renderSuitcaseTab();
+        renderLockSuitcaseDock();
+        updateTimerInterface();
+        sound.playChime('click');
+        hapticFeedback(20);
+      });
+    }
 
-      container.appendChild(card);
-    });
+    return card;
   }
 
   // Pack All button
@@ -1080,6 +1298,7 @@
     btnPackAll.addEventListener('click', () => {
       state.suitcaseApps.forEach(a => a.packed = true);
       saveState();
+      syncNativeAllowedPackages();
       renderSuitcaseTab();
       updateTimerInterface();
       renderLockSuitcaseDock();
@@ -1094,6 +1313,7 @@
     btnUnpackAll.addEventListener('click', () => {
       state.suitcaseApps.forEach(a => a.packed = false);
       saveState();
+      syncNativeAllowedPackages();
       renderSuitcaseTab();
       updateTimerInterface();
       renderLockSuitcaseDock();
@@ -1108,11 +1328,32 @@
     btnToggleStrict.addEventListener('click', () => {
       state.strictMode = !(state.strictMode !== false);
       saveState();
+      if (window.AndroidBridge && typeof window.AndroidBridge.setStrictMode === 'function') {
+        window.AndroidBridge.setStrictMode(state.strictMode);
+      }
       renderSuitcaseTab();
       sound.playChime('click');
       hapticFeedback(20);
     });
   }
+
+  // Native Blocker callback when an unauthorized app is intercepted
+  window.onNativeAppBlocked = function(pkg) {
+    try {
+      sound.playChime('shield');
+      hapticFeedback(80);
+      const shieldModal = document.getElementById('modal-shield');
+      const shieldAppName = document.getElementById('shield-app-name');
+      if (shieldModal && shieldAppName) {
+        const found = state._installedAppsCatalog?.find(a => a.pkg === pkg);
+        shieldAppName.innerText = found ? found.name : (pkg || 'Unauthorized Application');
+        shieldModal.classList.remove('hidden');
+        shieldModal.classList.add('flex');
+      }
+    } catch (e) {
+      console.warn('onNativeAppBlocked error:', e);
+    }
+  };
 
   function renderLockSuitcaseDock() {
     const dockContainer = document.getElementById('dock-allowed-apps');
@@ -1141,6 +1382,7 @@
       dockContainer.appendChild(btn);
     });
   }
+
 
   // Mini-App Modal Controller
   window.openMiniApp = function(appId) {
@@ -1570,7 +1812,7 @@
         });
       }
 
-    } else {
+    } else if (appId === 'scratchpad') {
       // Quick Scratchpad
       if (titleEl) titleEl.innerText = 'Quick Scratchpad';
       if (iconEl) iconEl.innerText = 'edit_note';
@@ -1972,7 +2214,8 @@
     }
     // On Android: load real installed apps into suitcase
     if (window.AndroidBridge) {
-      setTimeout(loadInstalledAppsIntoSuitcase, 1200);
+      setTimeout(loadInstalledAppsCatalog, 800);
+      syncNativeAllowedPackages();
     }
     // On Android: also check if we need to restore a session that was running
     // when the app was killed and restarted

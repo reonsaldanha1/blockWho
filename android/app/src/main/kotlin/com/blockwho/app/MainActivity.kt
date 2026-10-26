@@ -129,6 +129,16 @@ class MainActivity : Activity() {
         webView?.onPause()
     }
 
+    
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent?.getBooleanExtra("FROM_BLOCKER", false) == true) {
+            val blockedPkg = intent.getStringExtra("BLOCKED_PKG") ?: ""
+            webView?.evaluateJavascript("if (typeof window.onNativeAppBlocked === 'function') { window.onNativeAppBlocked('$blockedPkg'); }", null)
+        }
+    }
+
     override fun onDestroy() {
         webView?.destroy()
         webView = null
@@ -425,59 +435,74 @@ class MainActivity : Activity() {
         // ---- Installed Apps (for Suitcase packing) ----
 
         /**
-         * Returns a JSON array of installed user apps (non-system).
+         * Returns a JSON array of all launchable user apps installed on the device.
          * Each entry: { "pkg": "com.example.app", "name": "App Name" }
-         *
-         * The JS layer uses this to let users select which apps to whitelist
-         * in their Suitcase before starting a session.
          */
         @JavascriptInterface
         fun getInstalledApps(): String {
             return try {
                 val pm = activity.packageManager
-                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    PackageManager.GET_META_DATA
-                } else {
-                    PackageManager.GET_META_DATA
-                }
-                val packages = pm.getInstalledApplications(flags)
+                val launchableIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val resolveInfos = pm.queryIntentActivities(launchableIntent, 0)
+                val seenPackages = mutableSetOf<String>()
                 val result = JSONArray()
 
-                // Intent filter: only apps that can be launched
-                val launchableIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                val launchablePackages = pm.queryIntentActivities(launchableIntent, 0)
-                    .map { it.activityInfo.packageName }
-                    .toSet()
+                val sorted = resolveInfos.sortedBy { it.loadLabel(pm).toString().lowercase() }
 
-                packages
-                    .filter { appInfo ->
-                        // Include only launchable user apps, exclude our own
-                        appInfo.packageName != activity.packageName &&
-                        launchablePackages.contains(appInfo.packageName) &&
-                        (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 ||
-                        // Also include some common non-system launchable apps that have SYSTEM flag
-                        (launchablePackages.contains(appInfo.packageName) &&
-                         appInfo.packageName != activity.packageName &&
-                         !appInfo.packageName.startsWith("com.android.") &&
-                         appInfo.packageName != "android")
-                    }
-                    .sortedBy { it.loadLabel(pm).toString().lowercase() }
-                    .take(150) // Cap at 150 apps for performance
-                    .forEach { appInfo ->
-                        try {
-                            val obj = JSONObject()
-                            obj.put("pkg", appInfo.packageName)
-                            obj.put("name", appInfo.loadLabel(pm).toString())
-                            result.put(obj)
-                        } catch (e: Throwable) {
-                            // skip bad entries
+                for (resolveInfo in sorted) {
+                    val pkg = resolveInfo.activityInfo?.packageName ?: continue
+                    if (pkg == activity.packageName || pkg == "android" || pkg == "com.android.systemui") continue
+                    if (seenPackages.contains(pkg)) continue
+                    seenPackages.add(pkg)
+
+                    try {
+                        val name = resolveInfo.loadLabel(pm).toString()
+                        val obj = JSONObject().apply {
+                            put("pkg", pkg)
+                            put("name", name)
                         }
-                    }
+                        result.put(obj)
+                    } catch (ignored: Throwable) {}
+                }
 
                 result.toString()
             } catch (e: Throwable) {
                 "[]"
             }
+        }
+
+        /**
+         * Dynamically updates the allowed packages list in SharedPrefsManager
+         * so adding or toggling apps in the Suitcase takes effect immediately.
+         */
+        @JavascriptInterface
+        fun updateAllowedPackages(allowedPackagesJson: String) {
+            try {
+                val allowed = mutableSetOf<String>()
+                allowed.add(activity.packageName)
+                allowed.add("com.android.dialer")
+                allowed.add("com.google.android.dialer")
+                allowed.add("com.android.phone")
+
+                try {
+                    val arr = JSONArray(allowedPackagesJson)
+                    for (i in 0 until arr.length()) {
+                        val pkg = arr.optString(i)
+                        if (pkg.isNotEmpty()) allowed.add(pkg)
+                    }
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                }
+
+                SharedPrefsManager.setAllowedPackages(activity, allowed)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
+
+        @JavascriptInterface
+        fun setStrictMode(strict: Boolean) {
+            SharedPrefsManager.setStrictMode(activity, strict)
         }
 
         // ---- Haptic Feedback ----

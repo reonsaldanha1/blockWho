@@ -552,14 +552,18 @@
           <!-- Quick Action Bar -->
           <div class="flex items-center justify-between gap-2 px-1">
             <span class="font-label-sm text-xs text-outline uppercase tracking-wider font-semibold">Whitelisted Tools</span>
-            <div class="flex items-center gap-2">
-              <button class="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-variant active:scale-95 text-white font-label-sm text-xs font-semibold transition-all cursor-pointer flex items-center gap-1" id="btn-pack-all-suitcase" title="Pack all apps">
-                <span class="material-symbols-outlined text-[13px]">check_box</span>
-                <span>Pack All</span>
+            <div class="flex items-center gap-1.5">
+              <button class="px-3 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-sm" id="btn-open-add-app-modal" title="Add individual apps to Suitcase">
+                <span class="material-symbols-outlined text-[15px]">add</span>
+                <span>Add App</span>
               </button>
-              <button class="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-variant active:scale-95 text-outline hover:text-white font-label-sm text-xs font-semibold transition-all cursor-pointer flex items-center gap-1" id="btn-unpack-all-suitcase" title="Unpack all apps">
+              <button class="px-2.5 py-1.5 rounded-full bg-surface-container hover:bg-surface-variant active:scale-95 text-white font-label-sm text-xs font-semibold transition-all cursor-pointer flex items-center gap-1" id="btn-pack-all-suitcase" title="Pack all apps">
+                <span class="material-symbols-outlined text-[13px]">check_box</span>
+                <span>All</span>
+              </button>
+              <button class="px-2.5 py-1.5 rounded-full bg-surface-container hover:bg-surface-variant active:scale-95 text-outline hover:text-white font-label-sm text-xs font-semibold transition-all cursor-pointer flex items-center gap-1" id="btn-unpack-all-suitcase" title="Unpack all apps">
                 <span class="material-symbols-outlined text-[13px]">check_box_outline_blank</span>
-                <span>Clear All</span>
+                <span>Clear</span>
               </button>
             </div>
           </div>
@@ -669,6 +673,45 @@
   </div><!-- End desktop-wrapper -->
 
   <!-- ==================== MODAL OVERLAYS ==================== -->
+
+  <!-- 7. Add App to Suitcase Modal -->
+  <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4" id="modal-add-suitcase-app">
+    <div class="w-full max-w-sm rounded-2xl bg-surface-container-low border border-white/10 p-5 flex flex-col space-y-3.5 shadow-2xl max-h-[85vh]">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-[22px]">add_circle</span>
+          <div>
+            <h3 class="font-headline-md text-base text-primary font-bold">Add to Suitcase</h3>
+            <p class="font-body-sm text-[11px] text-outline">Choose apps to whitelist during lockdown</p>
+          </div>
+        </div>
+        <button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-outline hover:text-white transition-all cursor-pointer" id="btn-close-add-app-modal">
+          ✕
+        </button>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="relative flex-shrink-0">
+        <span class="material-symbols-outlined absolute left-3 top-2.5 text-outline text-[18px]">search</span>
+        <input type="text" id="input-search-installed-apps" placeholder="Search installed apps..." class="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-container border border-white/10 text-primary placeholder-outline/60 text-xs focus:outline-none focus:border-primary/50 transition-colors">
+      </div>
+
+      <!-- Installed Apps List Container -->
+      <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 no-scrollbar min-h-[220px] max-h-[350px]" id="installed-apps-picker-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Footer -->
+      <div class="pt-2 border-t border-white/10 flex items-center justify-between flex-shrink-0">
+        <span class="text-[11px] text-outline"><span id="suitcase-modal-selected-count">0</span> custom apps added</span>
+        <button class="px-4 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer" id="btn-done-add-app-modal">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- 1. Mini-App Launcher Sheet (Maps, Audio Synth, Phone) -->
   <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4" id="modal-mini-app">
