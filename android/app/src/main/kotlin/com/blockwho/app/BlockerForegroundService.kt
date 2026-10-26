@@ -7,10 +7,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 
 /**
  * BlockerForegroundService
@@ -21,7 +23,7 @@ import androidx.core.app.NotificationCompat
  * 2. Holds a WakeLock-equivalent priority so Android doesn't kill the process.
  * 3. Receives START/STOP intents from MainActivity/WebView bridge.
  *
- * This mirrors how BlockIt ensures sessions survive app minimization.
+ * Fully compliant with Android 14 (API 34) Foreground Service types.
  */
 class BlockerForegroundService : Service() {
 
@@ -36,22 +38,30 @@ class BlockerForegroundService : Service() {
         @Volatile var isRunning = false
 
         fun start(ctx: Context, sessionEndMs: Long) {
-            val intent = Intent(ctx, BlockerForegroundService::class.java).apply {
-                action = ACTION_START
-                putExtra(EXTRA_SESSION_END_MS, sessionEndMs)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ctx.startForegroundService(intent)
-            } else {
-                ctx.startService(intent)
+            try {
+                val intent = Intent(ctx, BlockerForegroundService::class.java).apply {
+                    action = ACTION_START
+                    putExtra(EXTRA_SESSION_END_MS, sessionEndMs)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ctx.startForegroundService(intent)
+                } else {
+                    ctx.startService(intent)
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to start BlockerForegroundService", e)
             }
         }
 
         fun stop(ctx: Context) {
-            val intent = Intent(ctx, BlockerForegroundService::class.java).apply {
-                action = ACTION_STOP
+            try {
+                val intent = Intent(ctx, BlockerForegroundService::class.java).apply {
+                    action = ACTION_STOP
+                }
+                ctx.startService(intent)
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to stop BlockerForegroundService", e)
             }
-            ctx.startService(intent)
         }
     }
 
@@ -67,16 +77,40 @@ class BlockerForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
-                val notification = buildSessionNotification(endMs)
-                startForeground(NOTIFICATION_ID, notification)
-                Log.i(TAG, "Session foreground service started, ends at $endMs")
+                try {
+                    val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
+                    val notification = buildSessionNotification(endMs)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ServiceCompat.startForeground(
+                            this,
+                            NOTIFICATION_ID,
+                            notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                        )
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification)
+                    }
+                    Log.i(TAG, "Session foreground service started, ends at $endMs")
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Failed to start foreground service", e)
+                    try {
+                        val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
+                        val notification = buildSessionNotification(endMs)
+                        startForeground(NOTIFICATION_ID, notification)
+                    } catch (err: Throwable) {
+                        Log.e(TAG, "Fallback startForeground also failed", err)
+                    }
+                }
             }
             ACTION_STOP -> {
-                stopForeground(true)
-                stopSelf()
-                isRunning = false
-                Log.i(TAG, "Session foreground service stopped")
+                try {
+                    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    isRunning = false
+                    Log.i(TAG, "Session foreground service stopped")
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Failed to stop foreground service", e)
+                }
             }
         }
         return START_STICKY
@@ -95,13 +129,20 @@ class BlockerForegroundService : Service() {
         val remainingMs = sessionEndMs - System.currentTimeMillis()
         val remainingMins = if (remainingMs > 0) (remainingMs / 60_000).toInt() else 0
 
+        val iconRes = try {
+            val resId = resources.getIdentifier("ic_launcher", "mipmap", packageName)
+            if (resId != 0) resId else android.R.drawable.ic_lock_idle_lock
+        } catch (e: Throwable) {
+            android.R.drawable.ic_lock_idle_lock
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🔒 blockWho Session Active")
             .setContentText(
                 if (remainingMins > 0) "$remainingMins min remaining · Stay focused"
                 else "Session in progress · Stay focused"
             )
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setSmallIcon(iconRes)
             .setOngoing(true)
             .setShowWhen(false)
             .setContentIntent(tapPending)

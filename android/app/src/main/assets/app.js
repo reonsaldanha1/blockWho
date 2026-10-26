@@ -594,12 +594,12 @@
   function triggerLockdown() {
     const btn = document.getElementById('lockdown-btn');
     if (!btn) return;
-    sound.playChime('lock');
-    hapticFeedback(50);
+    try { sound.playChime('lock'); } catch (e) {}
+    try { hapticFeedback(50); } catch (e) {}
 
     // Initial state transition
     state.isLocked = true;
-    state.lockTotalSeconds = state.currentMinutes * 60;
+    state.lockTotalSeconds = Math.max(60, (state.currentMinutes || 45) * 60);
     state.lockSecondsRemaining = state.lockTotalSeconds;
     saveState();
 
@@ -621,8 +621,16 @@
       }
     }
 
-    enterLockoutScreen();
-    startCountdownTimer();
+    try {
+      enterLockoutScreen();
+    } catch (e) {
+      console.error('Error entering lockout screen:', e);
+    }
+    try {
+      startCountdownTimer();
+    } catch (e) {
+      console.error('Error starting countdown timer:', e);
+    }
   }
 
   const lockdownBtn = document.getElementById('lockdown-btn');
@@ -1033,11 +1041,12 @@
     packed.forEach(app => {
       const btn = document.createElement('button');
       btn.className = 'flex flex-col items-center justify-center p-3 rounded-DEFAULT bg-surface-container-high hover:bg-surface-variant active:scale-95 transition-all cursor-pointer';
+      const displayName = ((app.name || app.pkg || 'App') + '').split(' ')[0];
       btn.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center mb-2">
-          <span class="material-symbols-outlined text-[20px] text-primary">${app.icon}</span>
+          <span class="material-symbols-outlined text-[20px] text-primary">${app.icon || 'apps'}</span>
         </div>
-        <span class="font-label-sm text-label-sm text-primary font-medium tracking-wide truncate max-w-[80px]">${app.name.split(' ')[0]}</span>
+        <span class="font-label-sm text-label-sm text-primary font-medium tracking-wide truncate max-w-[80px]">${displayName}</span>
         <div class="flex items-center gap-0.5 mt-1">
           <span class="font-label-sm text-[9px] text-outline">LAUNCH</span>
           <span class="material-symbols-outlined text-[10px] text-outline">arrow_outward</span>
@@ -1050,6 +1059,19 @@
 
   // Mini-App Modal Controller
   window.openMiniApp = function(appId) {
+    // If it's a real Android package name, try launching via native bridge
+    if (window.AndroidBridge && typeof window.AndroidBridge.launchApp === 'function') {
+      const foundApp = state.suitcaseApps.find(a => a.id === appId || a.pkg === appId);
+      if (foundApp && foundApp.pkg && !['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera'].includes(foundApp.id)) {
+        try {
+          const launched = window.AndroidBridge.launchApp(foundApp.pkg);
+          if (launched) return;
+        } catch (e) {
+          console.warn('Native launch failed:', e);
+        }
+      }
+    }
+
     const modal = document.getElementById('modal-mini-app');
     const titleEl = document.getElementById('mini-app-title');
     const iconEl = document.getElementById('mini-app-icon');
@@ -2005,6 +2027,20 @@
   } else {
     navigateToTab('focus');
   }
+
+  // Expose global helpers for testing, WebView bridge and inspection
+  window.state = state;
+  window.navigateToTab = navigateToTab;
+  window.triggerLockdown = triggerLockdown;
+  window.exitLockoutToFocus = exitLockoutToFocus;
+  window.blockWho = {
+    state,
+    navigateToTab,
+    triggerLockdown,
+    exitLockoutToFocus,
+    saveState,
+    updateTimerInterface
+  };
 
   // Check first run permissions
   checkAndShowPermissionsOnboarding();

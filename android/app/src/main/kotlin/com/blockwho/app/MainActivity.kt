@@ -350,8 +350,14 @@ class MainActivity : Activity() {
                 SharedPrefsManager.setParachutesCount(activity, parachutesCount)
                 SharedPrefsManager.setSessionActive(activity, true)
 
-                // Start foreground service to keep session alive
-                BlockerForegroundService.start(activity, endMs)
+                // Start foreground service on UI thread to ensure Activity foreground state
+                activity.runOnUiThread {
+                    try {
+                        BlockerForegroundService.start(activity, endMs)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                    }
+                }
             } catch (e: Throwable) {
                 e.printStackTrace()
             }
@@ -364,9 +370,35 @@ class MainActivity : Activity() {
         fun stopBlockingSession() {
             try {
                 SharedPrefsManager.clearSession(activity)
-                BlockerForegroundService.stop(activity)
+                activity.runOnUiThread {
+                    try {
+                        BlockerForegroundService.stop(activity)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                    }
+                }
             } catch (e: Throwable) {
                 e.printStackTrace()
+            }
+        }
+
+        /**
+         * Launches an installed application by package name from the Suitcase dock.
+         */
+        @JavascriptInterface
+        fun launchApp(packageName: String): Boolean {
+            return try {
+                val launchIntent = activity.packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    activity.startActivity(launchIntent)
+                    true
+                } else {
+                    false
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                false
             }
         }
 
