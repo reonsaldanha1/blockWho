@@ -39,7 +39,19 @@ venv.bak/
 Thumbs.db
 desktop.ini
 
-# Archives
+# Archives & Binaries
 *.zip
 *.tar.gz
+*.apk
+*.aab
+
+# Android & Gradle
+.gradle/
+build/
+*/build/
+app/build/
+local.properties
+.cxx/
+*.iml
+
 

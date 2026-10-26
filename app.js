@@ -2,7 +2,7 @@
  * ==============================================================================
  * blockWho · Zenith Monolith Lockdown Engine
  * Exact Google Stitch Design System (Pitch Black #131315, Stark White, Crimson Eject)
- * Reverse-Engineered from "blockit | stop phone addiction" (com.hypenet.focused)
+ * blockWho · Stop Phone Addiction & Focus Monolith Engine
  * ==============================================================================
  */
 

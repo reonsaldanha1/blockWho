@@ -1,7 +1,7 @@
 """
 ==============================================================================
-BLOCKIT · STOP PHONE ADDICTION · NATIVE DESKTOP WINDOW LAUNCHER
-Launches the blockit reverse-engineered application in a native Windows WebView2 window.
+BLOCKWHO · STOP PHONE ADDICTION · NATIVE DESKTOP WINDOW LAUNCHER
+Launches the blockWho reverse-engineered application in a native Windows WebView2 window.
 ==============================================================================
 """
 
@@ -44,7 +44,7 @@ def main():
     server_thread.start()
 
     url = f"http://127.0.0.1:{port}/index.html"
-    print(f"[*] blockit web service running on {url}")
+    print(f"[*] blockWho web service running on {url}")
     print(f"[*] Opening native desktop window...")
 
     window = webview.create_window(
@@ -59,7 +59,7 @@ def main():
 
     webview.start(debug=False)
     server.shutdown()
-    print("[*] blockit native window closed.")
+    print("[*] blockWho native window closed.")
 
 if __name__ == '__main__':
     main()

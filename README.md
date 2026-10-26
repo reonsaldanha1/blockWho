@@ -1,6 +1,19 @@
-# 🛡️ blockit · stop phone addiction
+# 🛡️ blockWho · stop phone addiction
 
-> A high-fidelity reverse engineering of **blockit | stop phone addiction** ([Google Play Store: com.hypenet.focused](https://play.google.com/store/apps/details?id=com.hypenet.focused)), designed with an OLED midnight aesthetic, glassmorphic elevation, and native desktop window testing capabilities.
+> A high-fidelity reverse engineering of **blockWho | stop phone addiction** ([Google Play Store: com.hypenet.focused](https://play.google.com/store/apps/details?id=com.hypenet.focused)), designed with an OLED midnight aesthetic, glassmorphic elevation, native Android APK packaging, and native desktop window testing capabilities.
+
+---
+
+## 📱 Android App (.apk)
+
+Download the pre-compiled Android `.apk` directly from GitHub Releases:
+👉 **[Download blockWho-v1.0.0.apk (Releases)](https://github.com/reonsaldanha1/blockWho/releases/latest)**
+
+### Features on Android:
+- **OLED Midnight Dark Theme**: Pitch-black status bar and navigation bar (`#131315`) saving battery on AMOLED screens.
+- **Hardware-Accelerated WebView**: Ultra-smooth 60/120fps circular dial touch rotation and spring physics.
+- **Web Audio Binaural Synthesizer**: Gamma 40Hz, Deep Cabin brown noise, and rain soundscapes built directly into the app.
+- **Zero Distractions**: Local offline execution with zero tracker bloat.
 
 ---
 
@@ -19,7 +32,7 @@
 ---
 
 ### 2. 🧳 The Suitcase (Essential Allowed Apps)
-In *blockit*, strict lockdown means every distracting app is blocked. Only apps packed into **The Suitcase** are accessible.
+In *blockWho*, strict lockdown means every distracting app is blocked. Only apps packed into **The Suitcase** are accessible.
 - **Packed Apps Manager**: Toggle apps on/off with iOS-style glassmorphic switch controls.
 - **Functional In-Session Mini-Apps**:
   - 🧮 **Calculator**: Complete responsive arithmetic calculator.
@@ -73,38 +86,33 @@ Procedural audio synthesis generated directly in real-time without external audi
 - **Shell Controls**:
   - **Phone Frame / Edge-to-Edge Toggle**: Switch between realistic phone bezel and full desktop view.
   - **App Intercept Simulator**: Simulates what happens when a user attempts to open an unauthorized app (e.g., Instagram/TikTok) during lockdown, triggering the animated shield bounce-back.
-  - **Dynamic Island**: Displays real-time status notifications (`blockit ready`, `lockdown active`, `Intercepted`).
+  - **Dynamic Island**: Displays real-time status notifications (`blockWho ready`, `lockdown active`, `Intercepted`).
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Python 3.9+ (optional, for native desktop window)
-- Modern web browser (Chrome, Edge, Firefox, Safari)
+### Option A: Install on Android (.apk)
+1. Download `blockWho-v1.0.0.apk` from [Releases](https://github.com/reonsaldanha1/blockWho/releases/latest).
+2. Open the file on your Android device and tap Install (enable "Install unknown apps" if prompted).
 
-### Installation
-Clone the repository:
+Or compile from source:
 ```bash
-git clone https://github.com/reonsaldanha1/blockit.git
-cd blockit
+git clone https://github.com/reonsaldanha1/blockWho.git
+cd blockWho/android
+./gradlew assembleDebug
 ```
+The generated APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-### Method 1: Native Desktop Window (Recommended)
-Install dependencies and launch:
+### Option B: Native Desktop Window (Windows)
+Double-click `run_native_window.bat` or run:
 ```powershell
 pip install -r requirements.txt
 python native_launcher.py
 ```
-*(Or simply double-click `run_native_window.bat` on Windows)*
 
-### Method 2: In Any Browser / Live Web
-Open `index.html` directly in your browser, or visit the live deployment:
-👉 **[Live Demo on GitHub Pages](https://reonsaldanha1.github.io/blockit/)**
+### Option C: Live Browser Web App
+Open `index.html` directly in your browser or visit:
+👉 **[Live Web Demo on GitHub Pages](https://reonsaldanha1.github.io/blockWho/)**
 
-Or serve locally with any static server:
-```powershell
-python -m http.server 5173
-```
-Then visit `http://127.0.0.1:5173/index.html`.
 

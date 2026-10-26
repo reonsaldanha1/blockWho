@@ -1,14 +1,20 @@
-# 🛡️ blockit v1.0.0 — Stop Phone Addiction
+# 🛡️ blockWho v1.0.0 — Stop Phone Addiction
 
-Welcome to the initial official release of **blockit** (`v1.0.0`)! 🚀
+Welcome to the official release of **blockWho** (`v1.0.0`)! 🚀
 
-A high-fidelity reverse engineering of **blockit | stop phone addiction** ([Google Play: com.hypenet.focused](https://play.google.com/store/apps/details?id=com.hypenet.focused)), built with an **OLED midnight aesthetic**, glassmorphic elevation, Web Audio binaural soundscapes, and native Windows desktop execution.
+A high-fidelity reverse engineering of **blockWho | stop phone addiction** ([Google Play: com.hypenet.focused](https://play.google.com/store/apps/details?id=com.hypenet.focused)), built with an **OLED midnight aesthetic**, glassmorphic elevation, Web Audio binaural soundscapes, native Android APK packaging, and native Windows desktop execution.
 
 ---
 
 ### ✨ What's Included in v1.0.0
 
-#### 1. 🎛️ The Circular Focus Dial & Mode Presets
+#### 📱 Native Android App (.apk)
+- **Standalone Android APK**: `blockWho-v1.0.0.apk` compiled and signed for installation on Android 7.0+ (API 24 to 34+).
+- **OLED Dark Surface**: Ultra-deep pitch black `#131315` UI saving maximum battery on OLED/AMOLED mobile displays.
+- **Hardware-Accelerated WebView**: 60/120Hz smooth circular dial rotation and haptic feedback.
+- **Background Soundscapes**: Local Web Audio API procedural sound synthesizer (Gamma 40Hz, Brown noise, Rain).
+
+#### 🎛️ The Circular Focus Dial & Mode Presets
 - **Draggable Circular Dial**: Dynamic SVG arc and knob with touch and mouse drag rotation, snapping cleanly to 5-minute increments.
 - **Preset Modes**:
   - 📚 **Study Session**: 45m default
@@ -18,7 +24,7 @@ A high-fidelity reverse engineering of **blockit | stop phone addiction** ([Goog
 - **Dynamic End Time Prediction**: Live prediction of session completion time (e.g. *"Ends at 10:26 PM"*).
 - **Quick Increments**: One-tap adjustments (`-15m`, `+15m`, `+30m`, `+1 hr`).
 
-#### 2. 🧳 The Suitcase (Essential Allowed Apps)
+#### 🧳 The Suitcase (Essential Allowed Apps)
 During lockdown, distracting apps are locked out. Only apps packed into **The Suitcase** are accessible:
 - **Packed Apps Manager**: Toggle apps on/off with iOS-style glassmorphic switch controls.
 - **Functional Mini-Apps**:
@@ -27,34 +33,31 @@ During lockdown, distracting apps are locked out. Only apps packed into **The Su
   - 📞 **Emergency Contacts**: Quick emergency dialer directory (Family, Work Direct Line, Medical Dispatch).
   - 🎵 **Focus Soundscape**: Direct audio flow controls.
 
-#### 3. 🪂 The Parachute (Emergency Escape)
+#### 🪂 The Parachute (Emergency Escape)
 - **Accountability Guard**: You begin with 2 Parachutes.
 - **15-Second Breathing Meditation**: Deploying a parachute initiates a 15-second guided breathing meditation countdown before the exit unlocks, preventing impulsive unlocks.
 - **Habit Streak Penalty**: Using an emergency exit resets your active streak to 0.
 
-#### 4. 🏙️ The Tower (Skyscraper Habit Visualization)
+#### 🏙️ The Tower (Skyscraper Habit Visualization)
 - **Isometric Skyscraper**: Every successful focus block constructs a newly stacked illuminated floor in your personal tower.
 - **Interactive Floor Inspector**: Tap any floor to inspect its session duration, category, and timestamp.
 - **Milestone Ranks**: Progress from Tier I (Cottage) to Tier II (Skyscraper) and beyond.
 
-#### 5. ⏰ Scheduled Routines & 📊 Focus Analytics
+#### ⏰ Scheduled Routines & 📊 Focus Analytics
 - **Scheduled Routines**: Set automatic daily focus blocks with day-of-week selection chips.
 - **Analytics Dashboard**: Daily focus hours, urge resistance percentage, urges blocked counter, and 7-day weekly bar chart.
 
-#### 6. 🎧 Focus Soundscape Synthesizer (Web Audio API)
+#### 🎧 Focus Soundscape Synthesizer (Web Audio API)
 Procedural audio synthesis generated dynamically in real-time in the browser:
 - 🧠 **40Hz Gamma**: Dual-sine binaural beats (200Hz L / 240Hz R) for brainwave entrainment.
 - 🪵 **Deep Cabin**: Resonant brown noise with low-pass filtering.
 - 🌧️ **Gentle Rain**: Bandpass modulated pink/white noise simulating rainfall.
 - ⚪ **White Noise**: Soft focus noise with master volume control.
 
-#### 7. 📱 Desktop Window & Shell Test Harness
-- Packaged with `pywebview` for native Windows desktop execution.
-- Includes realistic phone bezel toggle, Dynamic Island status notifications, and unauthorized app intercept simulation.
-
 ---
 
-### 📦 Quick Start & Assets
+### 📦 Release Assets & Downloads
 
-- **Web Live Demo**: [https://reonsaldanha1.github.io/blockit/](https://reonsaldanha1.github.io/blockit/)
-- **Windows Desktop Package**: Download `blockit-v1.0.0-windows-desktop.zip` below, extract, and double-click `run_native_window.bat`.
+- 📲 **Android Package**: Download `blockWho-v1.0.0.apk` below and install directly on your phone.
+- 💻 **Windows Desktop App**: Download `blockWho-v1.0.0-windows-desktop.zip` below, extract, and double-click `run_native_window.bat`.
+- 🌐 **Web Live Demo**: [https://reonsaldanha1.github.io/blockWho/](https://reonsaldanha1.github.io/blockWho/)
