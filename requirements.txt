@@ -1,0 +1,2 @@
+# Requirements for running the native desktop window launcher
+pywebview>=5.0.0
