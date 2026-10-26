@@ -12,7 +12,7 @@
   // ==========================================
   // 1. DATA STATE & PERSISTENCE
   // ==========================================
-  const STORAGE_KEY = 'blockwho_app_state_v1';
+  const STORAGE_KEY = 'blockwho_app_state_v2';
 
   const DEFAULT_STATE = {
     currentMinutes: 60,
@@ -36,34 +36,19 @@
       { id: 'camera', name: 'Document Scanner', icon: 'photo_camera', desc: 'Quick document capture without social media', packed: false }
     ],
 
-    // The Tower (Habit Skyscraper)
+    // The Tower (Habit Skyscraper) - starts empty with zero floors
     tower: {
-      streakDays: 14,
-      floorsCount: 14,
-      totalFocusHours: 32.5,
-      floors: [
-        { floor: 1, mode: 'Quick Reset', duration: 25, date: 'Oct 12, 2026', parachutes: 0 },
-        { floor: 2, mode: 'Study Sprint', duration: 45, date: 'Oct 13, 2026', parachutes: 0 },
-        { floor: 3, mode: 'Deep Work', duration: 90, date: 'Oct 14, 2026', parachutes: 0 },
-        { floor: 4, mode: 'Deep Work', duration: 60, date: 'Oct 15, 2026', parachutes: 0 },
-        { floor: 5, mode: 'Night Rest', duration: 180, date: 'Oct 16, 2026', parachutes: 0 },
-        { floor: 6, mode: 'Study Sprint', duration: 45, date: 'Oct 17, 2026', parachutes: 0 },
-        { floor: 7, mode: 'Deep Work', duration: 90, date: 'Oct 18, 2026', parachutes: 0 },
-        { floor: 8, mode: 'Deep Work', duration: 60, date: 'Oct 19, 2026', parachutes: 0 },
-        { floor: 9, mode: 'Study Sprint', duration: 45, date: 'Oct 20, 2026', parachutes: 0 },
-        { floor: 10, mode: 'Deep Work', duration: 90, date: 'Oct 21, 2026', parachutes: 0 },
-        { floor: 11, mode: 'Study Sprint', duration: 45, date: 'Oct 22, 2026', parachutes: 0 },
-        { floor: 12, mode: 'Deep Work', duration: 60, date: 'Oct 23, 2026', parachutes: 0 },
-        { floor: 13, mode: 'Night Sanctuary', duration: 180, date: 'Oct 24, 2026', parachutes: 0 },
-        { floor: 14, mode: 'Deep Work Sprint', duration: 90, date: 'Oct 25, 2026', parachutes: 0 }
-      ]
+      streakDays: 0,
+      floorsCount: 0,
+      totalFocusHours: 0,
+      floors: []
     },
 
-    // Scheduled Routines
+    // Scheduled Routines - all disabled by default
     routines: [
-      { id: 'r1', name: 'Morning Deep Work', time: '09:00', duration: 90, days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], active: true },
-      { id: 'r2', name: 'Afternoon Study Sprint', time: '14:30', duration: 45, days: ['Mon', 'Tue', 'Wed', 'Thu'], active: true },
-      { id: 'r3', name: 'Night Sleep Sanctuary', time: '23:00', duration: 180, days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], active: true }
+      { id: 'r1', name: 'Morning Deep Work', time: '09:00', duration: 90, days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], active: false },
+      { id: 'r2', name: 'Afternoon Study Sprint', time: '14:30', duration: 45, days: ['Mon', 'Tue', 'Wed', 'Thu'], active: false },
+      { id: 'r3', name: 'Night Sleep Sanctuary', time: '23:00', duration: 180, days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], active: false }
     ],
 
     scratchpadContent: "blockWho Focus Principles:\n1. Zero bypass allowed until timer reaches zero.\n2. Protect dopamine reservoirs.\n3. The Parachute is for true emergencies only.\n"
@@ -662,6 +647,12 @@
     const modeIndicator = document.getElementById('lock-mode-indicator');
     if (modeIndicator) {
       modeIndicator.innerText = `SESSION · ${state.selectedMode.toUpperCase()} SPRINT`;
+    }
+
+    const towerFloorBadge = document.getElementById('lock-tower-floor-text');
+    if (towerFloorBadge) {
+      const floorsNum = state.tower.floors ? state.tower.floors.length : 0;
+      towerFloorBadge.innerText = floorsNum === 0 ? 'Floor 1 (in progress)' : `Floor ${floorsNum} Tower (+1 in prog)`;
     }
 
     renderLockSuitcaseDock();
@@ -1449,12 +1440,59 @@
     const streakEl = document.getElementById('tower-streak-number');
     const floorsEl = document.getElementById('tower-floors-total');
     const hoursEl = document.getElementById('tower-hours-total');
+    const tierLabel = document.getElementById('tower-tier-label');
+    const tierDesc = document.getElementById('tower-tier-desc');
 
-    if (streakEl) streakEl.innerText = state.tower.streakDays;
-    if (floorsEl) floorsEl.innerText = state.tower.floorsCount;
-    if (hoursEl) hoursEl.innerText = `${state.tower.totalFocusHours}h`;
+    const totalFloors = state.tower.floorsCount || (state.tower.floors ? state.tower.floors.length : 0);
+    if (streakEl) streakEl.innerText = state.tower.streakDays || 0;
+    if (floorsEl) floorsEl.innerText = totalFloors;
+    if (hoursEl) hoursEl.innerText = `${state.tower.totalFocusHours || 0}h`;
+
+    // Dynamic Tier calculation
+    if (tierLabel && tierDesc) {
+      if (totalFloors === 0) {
+        tierLabel.innerText = 'Tier 0';
+        tierDesc.innerText = 'Ground';
+      } else if (totalFloors < 5) {
+        tierLabel.innerText = 'Tier I';
+        tierDesc.innerText = 'Cottage';
+      } else if (totalFloors < 10) {
+        tierLabel.innerText = 'Tier II';
+        tierDesc.innerText = 'Townhouse';
+      } else {
+        tierLabel.innerText = 'Tier III';
+        tierDesc.innerText = 'Skyscraper';
+      }
+    }
+
+    // Also update Profile modal stats
+    const profStreak = document.getElementById('profile-streak-val');
+    const profHours = document.getElementById('profile-hours-val');
+    if (profStreak) profStreak.innerText = `${state.tower.streakDays || 0} Days`;
+    if (profHours) profHours.innerText = `${state.tower.totalFocusHours || 0}h`;
 
     // Render floor slabs (stacked from floor 1 to N)
+    if (!state.tower.floors || state.tower.floors.length === 0) {
+      const nameEl = document.getElementById('inspect-floor-name');
+      const detailsEl = document.getElementById('inspect-floor-details');
+      if (nameEl) nameEl.innerText = 'No Floors Built Yet';
+      if (detailsEl) detailsEl.innerText = 'Complete your first focus session to start constructing your tower.';
+
+      const emptyCard = document.createElement('div');
+      emptyCard.className = 'w-full py-8 px-4 rounded-xl border border-dashed border-white/10 bg-surface-container-low/50 flex flex-col items-center justify-center text-center space-y-2';
+      emptyCard.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-outline">
+          <span class="material-symbols-outlined text-[20px]">apartment</span>
+        </div>
+        <div>
+          <div class="font-label-md text-xs font-semibold text-primary">Tower Awaiting Construction</div>
+          <div class="font-body-sm text-[11px] text-outline mt-0.5">Complete a focus sprint to build Floor 1.</div>
+        </div>
+      `;
+      stack.appendChild(emptyCard);
+      return;
+    }
+
     state.tower.floors.forEach((f, idx) => {
       const slab = document.createElement('div');
       const isTop = idx === state.tower.floors.length - 1;
@@ -1478,14 +1516,13 @@
       stack.appendChild(slab);
     });
 
-    if (state.tower.floors.length > 0) {
-      inspectFloor(state.tower.floors[state.tower.floors.length - 1]);
-    }
+    inspectFloor(state.tower.floors[state.tower.floors.length - 1]);
   }
 
   function inspectFloor(f) {
     const nameEl = document.getElementById('inspect-floor-name');
     const detailsEl = document.getElementById('inspect-floor-details');
+    if (!f) return;
     if (nameEl) nameEl.innerText = `Floor ${f.floor}: ${f.mode}`;
     if (detailsEl) detailsEl.innerText = `Constructed ${f.date} · ${f.duration} Minutes · ${f.parachutes} Parachutes Used`;
   }
