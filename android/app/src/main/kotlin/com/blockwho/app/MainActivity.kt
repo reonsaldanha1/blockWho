@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
@@ -14,15 +15,17 @@ import android.os.Process
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.WindowManager
+import android.view.accessibility.AccessibilityManager
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.WindowInsetsController
+import android.view.WindowManager
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : Activity() {
 
@@ -52,6 +55,9 @@ class MainActivity : Activity() {
         } catch (e: Throwable) {
             e.printStackTrace()
         }
+
+        // Store own package name in shared prefs so the accessibility service knows to allow it
+        SharedPrefsManager.setOwnPackage(this, packageName)
 
         try {
             val wv = WebView(this)
@@ -86,7 +92,7 @@ class MainActivity : Activity() {
                 }
             }
 
-            // Expose Android Native Bridge for permission checks and haptics
+            // Expose Android Native Bridge for permission checks, session control, and haptics
             wv.addJavascriptInterface(WebAppInterface(this), "AndroidBridge")
 
             setContentView(wv)
@@ -111,7 +117,11 @@ class MainActivity : Activity() {
         super.onResume()
         webView?.onResume()
         // Refresh permission badges whenever the user returns from system settings
-        webView?.evaluateJavascript("if (window.refreshPermissionBadges) window.refreshPermissionBadges();", null)
+        webView?.evaluateJavascript(
+            "if (window.refreshPermissionBadges) window.refreshPermissionBadges(); " +
+            "if (window.refreshAccessibilityStatus) window.refreshAccessibilityStatus();",
+            null
+        )
     }
 
     override fun onPause() {
@@ -125,6 +135,9 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    // ============================================================
+    // JavaScript Bridge
+    // ============================================================
     class WebAppInterface(private val activity: Activity) {
 
         @JavascriptInterface
@@ -132,6 +145,8 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun getAppVersion(): String = "1.0.0"
+
+        // ---- Permissions ----
 
         @JavascriptInterface
         fun hasUsageStatsPermission(): Boolean {
@@ -259,6 +274,181 @@ class MainActivity : Activity() {
                 }
             }
         }
+
+        // ---- Accessibility Service ----
+
+        /**
+         * Returns true if the BlockerAccessibilityService is currently enabled
+         * in Android Accessibility Settings.
+         */
+        @JavascriptInterface
+        fun hasAccessibilityPermission(): Boolean {
+            return try {
+                val am = activity.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+                    ?: return false
+                val enabledServices = Settings.Secure.getString(
+                    activity.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ) ?: ""
+                enabledServices.contains(activity.packageName + "/" + BlockerAccessibilityService::class.java.name)
+            } catch (e: Throwable) {
+                false
+            }
+        }
+
+        /**
+         * Opens the Android Accessibility Settings page so the user can enable
+         * the BlockerAccessibilityService.
+         */
+        @JavascriptInterface
+        fun requestAccessibilityPermission() {
+            try {
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
+
+        // ---- Session Control ----
+
+        /**
+         * Called by the JS layer when a lockdown session begins.
+         * Activates the native blocking layer and starts the foreground service.
+         *
+         * @param durationSeconds Total session duration in seconds
+         * @param allowedPackagesJson JSON array of package name strings that are whitelisted
+         * @param parachutesCount Number of parachutes remaining
+         */
+        @JavascriptInterface
+        fun startBlockingSession(durationSeconds: Int, allowedPackagesJson: String, parachutesCount: Int) {
+            try {
+                val endMs = System.currentTimeMillis() + (durationSeconds.toLong() * 1000L)
+
+                // Parse allowed packages from JSON
+                val allowed = mutableSetOf<String>()
+                // Always allow our own package + essential dialer/emergency
+                allowed.add(activity.packageName)
+                allowed.add("com.android.dialer")
+                allowed.add("com.google.android.dialer")
+                allowed.add("com.android.phone")
+
+                try {
+                    val arr = JSONArray(allowedPackagesJson)
+                    for (i in 0 until arr.length()) {
+                        val pkg = arr.optString(i)
+                        if (pkg.isNotEmpty()) allowed.add(pkg)
+                    }
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                }
+
+                SharedPrefsManager.setAllowedPackages(activity, allowed)
+                SharedPrefsManager.setSessionEndMs(activity, endMs)
+                SharedPrefsManager.setParachutesCount(activity, parachutesCount)
+                SharedPrefsManager.setSessionActive(activity, true)
+
+                // Start foreground service to keep session alive
+                BlockerForegroundService.start(activity, endMs)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
+
+        /**
+         * Called by the JS layer when a session ends (timer complete or parachute used).
+         */
+        @JavascriptInterface
+        fun stopBlockingSession() {
+            try {
+                SharedPrefsManager.clearSession(activity)
+                BlockerForegroundService.stop(activity)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
+
+        /**
+         * Returns true if a native blocking session is currently active
+         * (used to restore state after app restart).
+         */
+        @JavascriptInterface
+        fun isBlockingSessionActive(): Boolean {
+            return SharedPrefsManager.isSessionActive(activity)
+        }
+
+        /**
+         * Returns remaining seconds in the active native session (0 if none).
+         */
+        @JavascriptInterface
+        fun getSessionRemainingSeconds(): Int {
+            val endMs = SharedPrefsManager.getSessionEndMs(activity)
+            if (endMs <= 0) return 0
+            val remaining = (endMs - System.currentTimeMillis()) / 1000
+            return if (remaining > 0) remaining.toInt() else 0
+        }
+
+        // ---- Installed Apps (for Suitcase packing) ----
+
+        /**
+         * Returns a JSON array of installed user apps (non-system).
+         * Each entry: { "pkg": "com.example.app", "name": "App Name" }
+         *
+         * The JS layer uses this to let users select which apps to whitelist
+         * in their Suitcase before starting a session.
+         */
+        @JavascriptInterface
+        fun getInstalledApps(): String {
+            return try {
+                val pm = activity.packageManager
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    PackageManager.GET_META_DATA
+                } else {
+                    PackageManager.GET_META_DATA
+                }
+                val packages = pm.getInstalledApplications(flags)
+                val result = JSONArray()
+
+                // Intent filter: only apps that can be launched
+                val launchableIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val launchablePackages = pm.queryIntentActivities(launchableIntent, 0)
+                    .map { it.activityInfo.packageName }
+                    .toSet()
+
+                packages
+                    .filter { appInfo ->
+                        // Include only launchable user apps, exclude our own
+                        appInfo.packageName != activity.packageName &&
+                        launchablePackages.contains(appInfo.packageName) &&
+                        (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 ||
+                        // Also include some common non-system launchable apps that have SYSTEM flag
+                        (launchablePackages.contains(appInfo.packageName) &&
+                         appInfo.packageName != activity.packageName &&
+                         !appInfo.packageName.startsWith("com.android.") &&
+                         appInfo.packageName != "android")
+                    }
+                    .sortedBy { it.loadLabel(pm).toString().lowercase() }
+                    .take(150) // Cap at 150 apps for performance
+                    .forEach { appInfo ->
+                        try {
+                            val obj = JSONObject()
+                            obj.put("pkg", appInfo.packageName)
+                            obj.put("name", appInfo.loadLabel(pm).toString())
+                            result.put(obj)
+                        } catch (e: Throwable) {
+                            // skip bad entries
+                        }
+                    }
+
+                result.toString()
+            } catch (e: Throwable) {
+                "[]"
+            }
+        }
+
+        // ---- Haptic Feedback ----
 
         @JavascriptInterface
         fun vibrate(milliseconds: Long) {

@@ -603,6 +603,24 @@
     state.lockSecondsRemaining = state.lockTotalSeconds;
     saveState();
 
+    // === NATIVE BLOCKING LAYER (BlockIt-style) ===
+    // Activate the Android AccessibilityService blocking layer.
+    // Build the allowed packages list from suitcase apps that have real package names.
+    if (window.AndroidBridge && typeof window.AndroidBridge.startBlockingSession === 'function') {
+      try {
+        const allowedPkgs = state.suitcaseApps
+          .filter(a => a.packed && a.pkg)
+          .map(a => a.pkg);
+        window.AndroidBridge.startBlockingSession(
+          state.lockTotalSeconds,
+          JSON.stringify(allowedPkgs),
+          state.parachutesCount
+        );
+      } catch (e) {
+        console.warn('Failed to start native blocking session:', e);
+      }
+    }
+
     enterLockoutScreen();
     startCountdownTimer();
   }
@@ -650,6 +668,11 @@
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;
+    }
+
+    // === NATIVE BLOCKING LAYER — stop enforcement ===
+    if (window.AndroidBridge && typeof window.AndroidBridge.stopBlockingSession === 'function') {
+      try { window.AndroidBridge.stopBlockingSession(); } catch (e) {}
     }
 
     const nav = document.getElementById('app-bottom-nav');
@@ -799,6 +822,19 @@
   function startChuteHold(e) {
     e.preventDefault();
     if (!state.isLocked) return;
+
+    // === ZERO PARACHUTES = NO EXIT (BlockIt strict mode) ===
+    if (state.parachutesCount <= 0) {
+      hapticFeedback(30);
+      if (chuteLabel) {
+        const orig = chuteLabel.innerText;
+        chuteLabel.innerText = '⚠ No Parachutes Left';
+        setTimeout(() => { chuteLabel.innerText = orig; }, 1800);
+      }
+      sound.playChime('alert');
+      return;
+    }
+
     if (chuteProgress) {
       chuteProgress.style.transition = 'width 3000ms linear';
       chuteProgress.style.width = '100%';
@@ -894,6 +930,44 @@
   // ==========================================
   // 8. SUITCASE MANAGEMENT & MINI-APPS
   // ==========================================
+  // Load real installed apps from the device (Android only)
+  function loadInstalledAppsIntoSuitcase() {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.getInstalledApps !== 'function') return;
+    if (state._appsLoaded) return; // already fetched
+    try {
+      const raw = window.AndroidBridge.getInstalledApps();
+      const apps = JSON.parse(raw);
+      if (!Array.isArray(apps) || apps.length === 0) return;
+
+      // Keep our built-in mini-app tools at top, then append real installed apps
+      const existingIds = new Set(state.suitcaseApps.map(a => a.id));
+      apps.forEach(app => {
+        if (!existingIds.has(app.pkg)) {
+          state.suitcaseApps.push({
+            id: app.pkg,
+            pkg: app.pkg,
+            name: app.name,
+            icon: 'apps',
+            desc: app.pkg,
+            packed: false
+          });
+          existingIds.add(app.pkg);
+        }
+      });
+
+      // Tag our built-in mini-apps with a null pkg so they are always whitelisted
+      state.suitcaseApps.forEach(a => {
+        if (!a.pkg) a.pkg = null;
+      });
+
+      state._appsLoaded = true;
+      saveState();
+      renderSuitcaseTab();
+    } catch (e) {
+      console.warn('getInstalledApps failed:', e);
+    }
+  }
+
   function renderSuitcaseTab() {
     const container = document.getElementById('suitcase-apps-list');
     if (!container) return;
@@ -906,17 +980,27 @@
     state.suitcaseApps.forEach(app => {
       const card = document.createElement('div');
       card.className = 'p-3.5 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5';
+
+      // Show package name for real device apps, or a mini-app label for built-ins
+      const subtitle = app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id)
+        ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[160px]">${app.pkg}</span>`
+        : `<span class="font-body-sm text-xs text-outline">${app.desc || ''}</span>`;
+
+      const iconHtml = (app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id))
+        ? `<span class="material-symbols-outlined text-[20px]">android</span>`
+        : `<span class="material-symbols-outlined text-[20px]">${app.icon || 'apps'}</span>`;
+
       card.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
-            <span class="material-symbols-outlined text-[20px]">${app.icon}</span>
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+            ${iconHtml}
           </div>
-          <div>
-            <div class="font-label-md text-primary font-bold">${app.name}</div>
-            <div class="font-body-sm text-xs text-outline">${app.desc}</div>
+          <div class="min-w-0 flex-1">
+            <div class="font-label-md text-primary font-bold truncate">${app.name}</div>
+            ${subtitle}
           </div>
         </div>
-        <label class="relative inline-flex items-center cursor-pointer">
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-2">
           <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer">
           <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
         </label>
@@ -1610,53 +1694,127 @@
       // First-time app open: trigger permissions onboarding modal
       setTimeout(showPermissionsModal, 400);
     }
+    // On Android: load real installed apps into suitcase
+    if (window.AndroidBridge) {
+      setTimeout(loadInstalledAppsIntoSuitcase, 1200);
+    }
+    // On Android: also check if we need to restore a session that was running
+    // when the app was killed and restarted
+    if (window.AndroidBridge && typeof window.AndroidBridge.isBlockingSessionActive === 'function') {
+      try {
+        if (window.AndroidBridge.isBlockingSessionActive() && !state.isLocked) {
+          const remaining = window.AndroidBridge.getSessionRemainingSeconds();
+          if (remaining > 30) {
+            state.isLocked = true;
+            state.lockSecondsRemaining = remaining;
+            state.lockTotalSeconds = remaining;
+            saveState();
+            enterLockoutScreen();
+            startCountdownTimer();
+          } else {
+            // Session expired during downtime — clean it up
+            if (typeof window.AndroidBridge.stopBlockingSession === 'function') {
+              window.AndroidBridge.stopBlockingSession();
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Session restore check failed:', e);
+      }
+    }
   }
 
   window.refreshPermissionBadges = function() {
     const isAndroid = !!window.AndroidBridge;
+    const grantedCls = 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+    const requiredCls = 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-error-container/30 text-error border border-error/30';
+    const optionalCls = 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-surface-container-high text-outline';
 
-    // 1. Usage stats
-    const usageGranted = isAndroid ? window.AndroidBridge.hasUsageStatsPermission() : false;
+    // 1. Accessibility Service — MOST CRITICAL (actual app blocking)
+    const accessGranted = isAndroid && typeof window.AndroidBridge.hasAccessibilityPermission === 'function'
+      ? window.AndroidBridge.hasAccessibilityPermission() : false;
+    const badgeAccess = document.getElementById('badge-perm-access');
+    const labelAccess = document.getElementById('label-grant-access');
+    if (badgeAccess) {
+      badgeAccess.className = accessGranted ? grantedCls : requiredCls;
+      badgeAccess.innerText = accessGranted ? '✓ Enabled' : 'Required';
+    }
+    if (labelAccess) {
+      labelAccess.innerText = accessGranted ? 'App Blocking Active' : 'Enable App Blocking';
+    }
+    // Also update the inline header accessibility status dot
+    window.refreshAccessibilityStatus && window.refreshAccessibilityStatus();
+
+    // 2. Usage stats
+    const usageGranted = isAndroid && typeof window.AndroidBridge.hasUsageStatsPermission === 'function'
+      ? window.AndroidBridge.hasUsageStatsPermission() : false;
     const badgeUsage = document.getElementById('badge-perm-usage');
     const labelUsage = document.getElementById('label-grant-usage');
     if (badgeUsage) {
-      badgeUsage.className = usageGranted
-        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-error-container/30 text-error border border-error/30';
+      badgeUsage.className = usageGranted ? grantedCls : requiredCls;
       badgeUsage.innerText = usageGranted ? '✓ Granted' : 'Required';
     }
     if (labelUsage) {
       labelUsage.innerText = usageGranted ? 'Usage Access Active' : 'Grant Usage Access';
     }
 
-    // 2. Overlay
-    const overlayGranted = isAndroid ? window.AndroidBridge.hasOverlayPermission() : false;
+    // 3. Overlay
+    const overlayGranted = isAndroid && typeof window.AndroidBridge.hasOverlayPermission === 'function'
+      ? window.AndroidBridge.hasOverlayPermission() : false;
     const badgeOverlay = document.getElementById('badge-perm-overlay');
     const labelOverlay = document.getElementById('label-grant-overlay');
     if (badgeOverlay) {
-      badgeOverlay.className = overlayGranted
-        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-error-container/30 text-error border border-error/30';
+      badgeOverlay.className = overlayGranted ? grantedCls : requiredCls;
       badgeOverlay.innerText = overlayGranted ? '✓ Granted' : 'Required';
     }
     if (labelOverlay) {
       labelOverlay.innerText = overlayGranted ? 'Overlay Access Active' : 'Grant Overlay Access';
     }
 
-    // 3. Notifications
-    const notifGranted = isAndroid ? window.AndroidBridge.hasNotificationPermission() : false;
+    // 4. Notifications
+    const notifGranted = isAndroid && typeof window.AndroidBridge.hasNotificationPermission === 'function'
+      ? window.AndroidBridge.hasNotificationPermission() : false;
     const badgeNotif = document.getElementById('badge-perm-notif');
     const labelNotif = document.getElementById('label-grant-notif');
     if (badgeNotif) {
-      badgeNotif.className = notifGranted
-        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-surface-container-high text-outline';
+      badgeNotif.className = notifGranted ? grantedCls : optionalCls;
       badgeNotif.innerText = notifGranted ? '✓ Granted' : 'Recommended';
     }
     if (labelNotif) {
       labelNotif.innerText = notifGranted ? 'Notifications Active' : 'Allow Notifications';
     }
   };
+
+  // Accessibility service live status in header
+  window.refreshAccessibilityStatus = function() {
+    const isAndroid = !!window.AndroidBridge;
+    const accessGranted = isAndroid && typeof window.AndroidBridge.hasAccessibilityPermission === 'function'
+      ? window.AndroidBridge.hasAccessibilityPermission() : false;
+    const headerStatusDot = document.getElementById('header-status-dot');
+    const headerStatusText = document.getElementById('header-status-text');
+    if (headerStatusDot && headerStatusText && !state.isLocked) {
+      if (accessGranted) {
+        headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-primary animate-pulse';
+        headerStatusText.innerText = 'READY';
+      } else {
+        headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
+        headerStatusText.innerText = 'SETUP NEEDED';
+      }
+    }
+  };
+
+  const btnGrantAccess = document.getElementById('btn-grant-access');
+  if (btnGrantAccess) {
+    btnGrantAccess.addEventListener('click', () => {
+      sound.playChime('click');
+      hapticFeedback(20);
+      if (window.AndroidBridge && typeof window.AndroidBridge.requestAccessibilityPermission === 'function') {
+        window.AndroidBridge.requestAccessibilityPermission();
+      } else {
+        alert('Accessibility permission is required on Android to enable app blocking. Go to Settings > Accessibility > blockWho > Enable.');
+      }
+    });
+  }
 
   const btnGrantUsage = document.getElementById('btn-grant-usage');
   if (btnGrantUsage) {

@@ -10,8 +10,8 @@ android {
         applicationId = "com.blockwho.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "2.0.0"
     }
 
     buildTypes {
@@ -51,5 +51,6 @@ tasks.named("preBuild") {
 }
 
 dependencies {
-    // Pure Android SDK without native .so libraries for 100% startup stability
+    // NotificationCompat and AndroidX core utilities
+    implementation("androidx.core:core-ktx:1.13.1")
 }

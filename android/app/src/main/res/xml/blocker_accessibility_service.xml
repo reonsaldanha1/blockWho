@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Accessibility service configuration for BlockerAccessibilityService.
+
+    - We listen to window state change events (TYPE_WINDOW_STATE_CHANGED)
+      and windows-changed events (TYPE_WINDOWS_CHANGED) to know when the
+      user switches to a different app.
+    - We do NOT read screen content, collect personal data, or read touch
+      events — only the package name of the foreground app.
+    - canRetrieveWindowContent: false (we don't need content access)
+    - accessibilityEventTypes: typeWindowStateChanged|typeWindowsChanged
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:settingsActivity="com.blockwho.app.MainActivity"
+    android:summary="@string/accessibility_service_summary" />
