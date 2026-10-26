@@ -144,7 +144,7 @@ class MainActivity : Activity() {
         fun isAndroid(): Boolean = true
 
         @JavascriptInterface
-        fun getAppVersion(): String = "1.0.0"
+        fun getAppVersion(): String = "2.1.0"
 
         // ---- Permissions ----
 

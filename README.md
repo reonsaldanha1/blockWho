@@ -7,7 +7,7 @@
 ## 📱 Android App (.apk)
 
 Download the pre-compiled Android `.apk` directly from GitHub Releases:
-👉 **[Download blockWho-v1.0.0.apk (Releases)](https://github.com/reonsaldanha1/blockWho/releases/latest)**
+👉 **[Download blockWho-v2.1.0.apk (Releases)](https://github.com/reonsaldanha1/blockWho/releases/latest)**
 
 ### Features on Android:
 - **OLED Midnight Dark Theme**: Pitch-black status bar and navigation bar (`#131315`) saving battery on AMOLED screens.
@@ -94,7 +94,7 @@ Procedural audio synthesis generated directly in real-time without external audi
 ## 🚀 Getting Started
 
 ### Option A: Install on Android (.apk)
-1. Download `blockWho-v1.0.0.apk` from [Releases](https://github.com/reonsaldanha1/blockWho/releases/latest).
+1. Download `blockWho-v2.1.0.apk` from [Releases](https://github.com/reonsaldanha1/blockWho/releases/latest).
 2. Open the file on your Android device and tap Install (enable "Install unknown apps" if prompted).
 
 Or compile from source:
