@@ -24,6 +24,7 @@
     activeTab: 'focus',
     hapticsEnabled: true,
     audioEnabled: true,
+    strictMode: true,
     
     // The Suitcase Whitelisted Items
     suitcaseApps: [
@@ -967,30 +968,52 @@
     }
   }
 
+  function updateSuitcaseCounters() {
+    const packedCount = state.suitcaseApps.filter(a => a.packed).length;
+    const totalApps = state.suitcaseApps.length;
+    const counterEl = document.getElementById('suitcase-active-counter');
+    const fractionEl = document.getElementById('focus-suitcase-fraction');
+    const badgeEl = document.getElementById('lock-suitcase-allowed-badge');
+
+    if (counterEl) counterEl.innerText = packedCount;
+    if (fractionEl) fractionEl.innerText = `${packedCount}/${totalApps}`;
+    if (badgeEl) badgeEl.innerText = `${packedCount} Allowed`;
+  }
+
   function renderSuitcaseTab() {
     const container = document.getElementById('suitcase-apps-list');
     if (!container) return;
     container.innerHTML = '';
 
-    const packedCount = state.suitcaseApps.filter(a => a.packed).length;
-    const counterEl = document.getElementById('suitcase-active-counter');
-    if (counterEl) counterEl.innerText = packedCount;
+    updateSuitcaseCounters();
+
+    // Update Strict Mode button display
+    const labelStrict = document.getElementById('label-strict-mode');
+    const btnStrict = document.getElementById('btn-toggle-strict-mode');
+    if (labelStrict && btnStrict) {
+      if (state.strictMode !== false) {
+        labelStrict.innerText = 'STRICT';
+        btnStrict.className = 'px-3 py-1 rounded-full bg-primary/10 hover:bg-primary/20 active:scale-95 text-primary font-label-sm text-xs font-semibold border border-primary/20 transition-all cursor-pointer';
+      } else {
+        labelStrict.innerText = 'STANDARD';
+        btnStrict.className = 'px-3 py-1 rounded-full bg-surface-container hover:bg-surface-variant active:scale-95 text-outline font-label-sm text-xs font-semibold border border-white/10 transition-all cursor-pointer';
+      }
+    }
 
     state.suitcaseApps.forEach(app => {
       const card = document.createElement('div');
-      card.className = 'p-3.5 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5';
+      card.className = 'p-3 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5 hover:border-white/15 transition-all';
 
-      // Show package name for real device apps, or a mini-app label for built-ins
       const subtitle = app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id)
-        ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[160px]">${app.pkg}</span>`
-        : `<span class="font-body-sm text-xs text-outline">${app.desc || ''}</span>`;
+        ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[160px] block">${app.pkg}</span>`
+        : `<span class="font-body-sm text-xs text-outline truncate block max-w-[180px]">${app.desc || ''}</span>`;
 
       const iconHtml = (app.pkg && !['calc','scratchpad','maps','audio','phone','reader','camera'].includes(app.id))
         ? `<span class="material-symbols-outlined text-[20px]">android</span>`
         : `<span class="material-symbols-outlined text-[20px]">${app.icon || 'apps'}</span>`;
 
       card.innerHTML = `
-        <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer app-info-area">
           <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
             ${iconHtml}
           </div>
@@ -999,24 +1022,95 @@
             ${subtitle}
           </div>
         </div>
-        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-2">
-          <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer">
-          <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-        </label>
+        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+          <button class="btn-test-app w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary flex items-center justify-center active:scale-95 transition-all cursor-pointer" title="Preview / Test ${app.name}" data-id="${app.id}">
+            <span class="material-symbols-outlined text-[16px]">visibility</span>
+          </button>
+          <label class="relative inline-flex items-center cursor-pointer p-1">
+            <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer suitcase-toggle">
+            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[6px] after:left-[6px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          </label>
+        </div>
       `;
 
       const input = card.querySelector('input');
+      const testBtn = card.querySelector('.btn-test-app');
+      const infoArea = card.querySelector('.app-info-area');
+
+      // 1. Toggle switch handler
       input.addEventListener('change', (e) => {
         app.packed = e.target.checked;
         saveState();
-        renderSuitcaseTab();
+        updateSuitcaseCounters();
         updateTimerInterface();
         renderLockSuitcaseDock();
         sound.playChime('click');
         hapticFeedback(15);
       });
 
+      // 2. Info area click: toggles checkbox
+      if (infoArea) {
+        infoArea.addEventListener('click', () => {
+          input.checked = !input.checked;
+          app.packed = input.checked;
+          saveState();
+          updateSuitcaseCounters();
+          updateTimerInterface();
+          renderLockSuitcaseDock();
+          sound.playChime('click');
+          hapticFeedback(15);
+        });
+      }
+
+      // 3. Test / Preview button handler: opens mini-app modal
+      if (testBtn) {
+        testBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openMiniApp(app.id);
+        });
+      }
+
       container.appendChild(card);
+    });
+  }
+
+  // Pack All button
+  const btnPackAll = document.getElementById('btn-pack-all-suitcase');
+  if (btnPackAll) {
+    btnPackAll.addEventListener('click', () => {
+      state.suitcaseApps.forEach(a => a.packed = true);
+      saveState();
+      renderSuitcaseTab();
+      updateTimerInterface();
+      renderLockSuitcaseDock();
+      sound.playChime('success');
+      hapticFeedback(30);
+    });
+  }
+
+  // Unpack All button
+  const btnUnpackAll = document.getElementById('btn-unpack-all-suitcase');
+  if (btnUnpackAll) {
+    btnUnpackAll.addEventListener('click', () => {
+      state.suitcaseApps.forEach(a => a.packed = false);
+      saveState();
+      renderSuitcaseTab();
+      updateTimerInterface();
+      renderLockSuitcaseDock();
+      sound.playChime('click');
+      hapticFeedback(20);
+    });
+  }
+
+  // Toggle Strict Mode button
+  const btnToggleStrict = document.getElementById('btn-toggle-strict-mode');
+  if (btnToggleStrict) {
+    btnToggleStrict.addEventListener('click', () => {
+      state.strictMode = !(state.strictMode !== false);
+      saveState();
+      renderSuitcaseTab();
+      sound.playChime('click');
+      hapticFeedback(20);
     });
   }
 
@@ -1350,6 +1444,129 @@
           hapticFeedback(30);
           const num = screen.innerText || '911';
           window.location.href = `tel:${num}`;
+        });
+      }
+
+    } else if (appId === 'reader') {
+      // Document Reader
+      if (titleEl) titleEl.innerText = 'Document Reader';
+      if (iconEl) iconEl.innerText = 'menu_book';
+      contentEl.innerHTML = `
+        <div class="flex-1 flex flex-col space-y-3">
+          <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container text-xs">
+            <span class="text-outline font-label-sm">FOCUS_PRINCIPLES.PDF · PAGE 1/3</span>
+            <div class="flex items-center gap-1.5">
+              <button id="btn-reader-zoom-out" class="w-7 h-7 rounded bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center font-bold text-xs cursor-pointer">A-</button>
+              <button id="btn-reader-zoom-in" class="w-7 h-7 rounded bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center font-bold text-xs cursor-pointer">A+</button>
+            </div>
+          </div>
+          <div id="reader-document-body" class="w-full flex-1 min-h-[220px] max-h-[280px] rounded-xl bg-surface-container-lowest border border-white/10 p-4 text-xs font-serif text-white/90 leading-relaxed overflow-y-auto no-scrollbar space-y-3 select-text">
+            <h4 class="font-sans font-bold text-sm text-primary">Core Principles of Unbroken Focus</h4>
+            <p>1. <strong>Attention Residue:</strong> Every switch between tasks leaves a cognitive penalty that degrades working memory. When in lockdown, honor the boundary completely.</p>
+            <p>2. <strong>Boredom as Fuel:</strong> The urge to check notifications is the brain craving easy dopamine. Sitting through boredom without escape triggers peak neuroplasticity and creative breakthrough.</p>
+            <p>3. <strong>The Deep Work Hypothesis:</strong> The ability to perform deep work is becoming increasingly rare at exactly the same time it is becoming increasingly valuable in our economy.</p>
+          </div>
+        </div>
+      `;
+
+      let currentFontSize = 12;
+      const docBody = document.getElementById('reader-document-body');
+      const btnZoomOut = document.getElementById('btn-reader-zoom-out');
+      const btnZoomIn = document.getElementById('btn-reader-zoom-in');
+      if (btnZoomOut && docBody) {
+        btnZoomOut.addEventListener('click', () => {
+          currentFontSize = Math.max(10, currentFontSize - 1);
+          docBody.style.fontSize = `${currentFontSize}px`;
+          sound.playChime('click');
+          hapticFeedback(10);
+        });
+      }
+      if (btnZoomIn && docBody) {
+        btnZoomIn.addEventListener('click', () => {
+          currentFontSize = Math.min(18, currentFontSize + 1);
+          docBody.style.fontSize = `${currentFontSize}px`;
+          sound.playChime('click');
+          hapticFeedback(10);
+        });
+      }
+
+    } else if (appId === 'camera') {
+      // Document Scanner
+      if (titleEl) titleEl.innerText = 'Document Scanner';
+      if (iconEl) iconEl.innerText = 'photo_camera';
+      contentEl.innerHTML = `
+        <div class="flex-1 flex flex-col space-y-3">
+          <div class="relative w-full h-48 rounded-xl bg-surface-container-lowest overflow-hidden border border-white/10 flex flex-col items-center justify-center text-center p-3">
+            <div class="absolute inset-4 border border-white/30 rounded-lg pointer-events-none flex flex-col justify-between p-2">
+              <div class="flex justify-between">
+                <span class="w-3 h-3 border-t-2 border-l-2 border-white"></span>
+                <span class="w-3 h-3 border-t-2 border-r-2 border-white"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="w-3 h-3 border-b-2 border-l-2 border-white"></span>
+                <span class="w-3 h-3 border-b-2 border-r-2 border-white"></span>
+              </div>
+            </div>
+            <div id="scanner-viewfinder-status" class="text-xs text-outline font-label-sm">
+              <span class="material-symbols-outlined text-[32px] text-primary/60 mb-1">document_scanner</span>
+              <div>Position document within the border</div>
+              <div class="text-[10px] text-outline/60 mt-0.5">High-contrast monochrome capture</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between px-2 pt-1">
+            <button id="btn-scanner-flash" class="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center cursor-pointer transition-all" title="Toggle Flash">
+              <span class="material-symbols-outlined text-[18px]">flash_off</span>
+            </button>
+            <button id="btn-scanner-shutter" class="w-14 h-14 rounded-full bg-white hover:bg-white/90 active:scale-95 text-black flex items-center justify-center font-bold shadow-lg cursor-pointer transition-all" title="Capture Scan">
+              <div class="w-11 h-11 rounded-full border-2 border-black flex items-center justify-center">
+                <span class="w-9 h-9 rounded-full bg-black/10"></span>
+              </div>
+            </button>
+            <button id="btn-scanner-retake" class="w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center cursor-pointer transition-all" title="Retake">
+              <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      const shutter = document.getElementById('btn-scanner-shutter');
+      const flashBtn = document.getElementById('btn-scanner-flash');
+      const retakeBtn = document.getElementById('btn-scanner-retake');
+      const statusText = document.getElementById('scanner-viewfinder-status');
+      let flashOn = false;
+
+      if (flashBtn) {
+        flashBtn.addEventListener('click', () => {
+          flashOn = !flashOn;
+          flashBtn.innerHTML = flashOn 
+            ? '<span class="material-symbols-outlined text-[18px] text-amber-400">flash_on</span>'
+            : '<span class="material-symbols-outlined text-[18px]">flash_off</span>';
+          sound.playChime('click');
+          hapticFeedback(15);
+        });
+      }
+
+      if (shutter && statusText) {
+        shutter.addEventListener('click', () => {
+          sound.playChime('success');
+          hapticFeedback(40);
+          statusText.innerHTML = `
+            <span class="material-symbols-outlined text-[32px] text-emerald-400 mb-1">check_circle</span>
+            <div class="text-white font-bold">Document Captured & Cached</div>
+            <div class="text-[10px] text-outline mt-0.5">Stored in local offline memory</div>
+          `;
+        });
+      }
+
+      if (retakeBtn && statusText) {
+        retakeBtn.addEventListener('click', () => {
+          sound.playChime('click');
+          hapticFeedback(15);
+          statusText.innerHTML = `
+            <span class="material-symbols-outlined text-[32px] text-primary/60 mb-1">document_scanner</span>
+            <div>Position document within the border</div>
+            <div class="text-[10px] text-outline/60 mt-0.5">High-contrast monochrome capture</div>
+          `;
         });
       }
 
