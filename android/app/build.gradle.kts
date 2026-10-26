@@ -3,15 +3,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.blockwho"
+    namespace = "com.blockwho.app"
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.blockwho.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     buildTypes {
@@ -31,7 +31,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            assets.srcDirs("src/main/assets")
+            assets.directories.add("src/main/assets")
         }
     }
 }
@@ -51,7 +51,5 @@ tasks.named("preBuild") {
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
+    // Pure Android SDK without native .so libraries for 100% startup stability
 }
