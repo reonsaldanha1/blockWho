@@ -1,8 +1,8 @@
 /**
  * ==============================================================================
- * blockWho · Zenith Monolith Lockdown Engine
- * Exact Google Stitch Design System (Pitch Black #131315, Stark White, Crimson Eject)
- * blockWho · Stop Phone Addiction & Focus Monolith Engine
+ * blockWho · Focus & App Lockdown Engine
+ * Exact Material 3 OLED Design System (#131315 Pitch Black, Stark White, Crimson Eject)
+ * Pure Zero-Bypass Digital Detox Platform
  * ==============================================================================
  */
 
@@ -12,7 +12,7 @@
   // ==========================================
   // 1. DATA STATE & PERSISTENCE
   // ==========================================
-  const STORAGE_KEY = 'blockwho_zenith_monolith_v3';
+  const STORAGE_KEY = 'blockwho_app_state_v1';
 
   const DEFAULT_STATE = {
     currentMinutes: 60,
@@ -22,14 +22,16 @@
     lockSecondsRemaining: 0,
     lockTotalSeconds: 0,
     activeTab: 'focus',
+    hapticsEnabled: true,
+    audioEnabled: true,
     
     // The Suitcase Whitelisted Items
     suitcaseApps: [
+      { id: 'calc', name: 'Calculator Utility', icon: 'calculate', desc: 'Essential math calculations & conversions', packed: true },
+      { id: 'scratchpad', name: 'Quick Scratchpad', icon: 'edit_note', desc: 'Distraction-free quick thoughts & notes', packed: true },
       { id: 'maps', name: 'Google Maps', icon: 'map', desc: 'Transit routes & offline GPS navigation', packed: true },
       { id: 'audio', name: 'Focus Soundscape', icon: 'headphones', desc: '40Hz Gamma binaural beats & cabin noise', packed: true },
       { id: 'phone', name: 'Emergency Calls', icon: 'call', desc: 'Direct phone dialer & family contacts', packed: true },
-      { id: 'scratchpad', name: 'Zenith Scratchpad', icon: 'edit_note', desc: 'Distraction-free quick thoughts & notes', packed: false },
-      { id: 'calc', name: 'Calculator Utility', icon: 'calculate', desc: 'Essential math calculations & conversions', packed: false },
       { id: 'reader', name: 'Document Reader', icon: 'menu_book', desc: 'Offline PDF references and reading', packed: false },
       { id: 'camera', name: 'Document Scanner', icon: 'photo_camera', desc: 'Quick document capture without social media', packed: false }
     ],
@@ -64,7 +66,7 @@
       { id: 'r3', name: 'Night Sleep Sanctuary', time: '23:00', duration: 180, days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], active: true }
     ],
 
-    scratchpadContent: "Zenith Monolith Principles:\n1. Zero bypass allowed until timer reaches zero.\n2. Protect dopamine reservoirs.\n3. The Parachute is for true emergencies only.\n"
+    scratchpadContent: "blockWho Focus Principles:\n1. Zero bypass allowed until timer reaches zero.\n2. Protect dopamine reservoirs.\n3. The Parachute is for true emergencies only.\n"
   };
 
   let state = loadState();
@@ -85,6 +87,20 @@
     } catch (e) {
       console.error('Failed to save state:', e);
     }
+  }
+
+  // ==========================================
+  // HAPTIC FEEDBACK & NATIVE VIBRATION
+  // ==========================================
+  function hapticFeedback(ms = 20) {
+    if (state.hapticsEnabled === false) return;
+    try {
+      if (window.AndroidBridge && typeof window.AndroidBridge.vibrate === 'function') {
+        window.AndroidBridge.vibrate(ms);
+      } else if (navigator.vibrate) {
+        navigator.vibrate(ms);
+      }
+    } catch (e) {}
   }
 
   // ==========================================
@@ -242,6 +258,7 @@
     }
 
     playChime(type = 'success') {
+      if (state.audioEnabled === false) return;
       try {
         this.init();
         const t = this.ctx.currentTime;
@@ -278,6 +295,15 @@
           gain.connect(this.ctx.destination);
           osc.start();
           osc.stop(t + 0.4);
+        } else if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, t);
+          gain.gain.setValueAtTime(0.12, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(t + 0.05);
         }
       } catch (e) {
         console.warn('Audio chime suppressed:', e);
@@ -285,6 +311,7 @@
     }
 
     playDTMF(digit) {
+      if (state.audioEnabled === false) return;
       try {
         this.init();
         const dtmfMap = {
@@ -302,8 +329,8 @@
 
         osc1.frequency.setValueAtTime(freqs[0], t);
         osc2.frequency.setValueAtTime(freqs[1], t);
-        gain.gain.setValueAtTime(0.2, t);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
 
         osc1.connect(gain);
         osc2.connect(gain);
@@ -311,95 +338,109 @@
 
         osc1.start();
         osc2.start();
-        osc1.stop(t + 0.18);
-        osc2.stop(t + 0.18);
+        osc1.stop(t + 0.12);
+        osc2.stop(t + 0.12);
       } catch (e) {}
     }
   }
 
   const sound = new SoundEngine();
 
+  // Unlock AudioContext on first user interaction
+  window.addEventListener('click', () => sound.init(), { once: true });
+  window.addEventListener('touchstart', () => sound.init(), { once: true });
+
   // ==========================================
-  // 3. ROTARY DIAL MATH & ENGINE (SCREEN 1)
+  // 3. SCREEN 1: FOCUS ROTARY DIAL
   // ==========================================
-  const dialRadius = 112;
-  const dialCircumference = 2 * Math.PI * dialRadius; // ~703.7
-  const maxMinutes = 180;
+  const dialSvg = document.getElementById('timer-dial');
+  const progressArc = document.getElementById('progress-arc');
+  const dialKnob = document.getElementById('dial-knob');
+  const dialKnobCore = document.getElementById('dial-knob-core');
+  const durationDisplay = document.getElementById('display-duration');
+  const endTimeDisplay = document.getElementById('display-end-time');
+
+  const CIRCLE_RADIUS = 112;
+  const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS; // 703.716
+  const MAX_MINUTES = 180; // 3 Hours max on standard dial cycle
 
   function generateDialTicks() {
-    const ticksContainer = document.getElementById('dial-ticks');
-    if (!ticksContainer) return;
-    ticksContainer.innerHTML = '';
-    const totalTicks = 36; // 36 intervals (10 deg each)
+    const ticksGroup = document.getElementById('dial-ticks');
+    if (!ticksGroup) return;
+    ticksGroup.innerHTML = '';
 
-    for (let i = 0; i < totalTicks; i++) {
-      const angle = (i * 360) / totalTicks;
-      const rad = (angle * Math.PI) / 180;
-      const x1 = 140 + 124 * Math.cos(rad);
-      const y1 = 140 + 124 * Math.sin(rad);
-      const isMajor = i % 3 === 0;
-      const length = isMajor ? 5 : 2;
-      const x2 = 140 + (124 - length) * Math.cos(rad);
-      const y2 = 140 + (124 - length) * Math.sin(rad);
+    const TOTAL_TICKS = 48;
+    for (let i = 0; i < TOTAL_TICKS; i++) {
+      const angleDeg = (i / TOTAL_TICKS) * 360;
+      const angleRad = (angleDeg * Math.PI) / 180;
+      const isMajor = i % 4 === 0;
+
+      const rInner = isMajor ? 122 : 124;
+      const rOuter = 127;
+
+      const x1 = 140 + rInner * Math.cos(angleRad);
+      const y1 = 140 + rInner * Math.sin(angleRad);
+      const x2 = 140 + rOuter * Math.cos(angleRad);
+      const y2 = 140 + rOuter * Math.sin(angleRad);
 
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', x1);
-      line.setAttribute('y1', y1);
-      line.setAttribute('x2', x2);
-      line.setAttribute('y2', y2);
-      line.setAttribute('stroke', 'currentColor');
-      line.setAttribute('stroke-width', isMajor ? '1.5' : '1');
-      line.setAttribute('opacity', isMajor ? '0.7' : '0.25');
-      ticksContainer.appendChild(line);
+      line.setAttribute('x1', x1.toFixed(2));
+      line.setAttribute('y1', y1.toFixed(2));
+      line.setAttribute('x2', x2.toFixed(2));
+      line.setAttribute('y2', y2.toFixed(2));
+      line.setAttribute('stroke', isMajor ? '#ffffff' : '#6b7280');
+      line.setAttribute('stroke-width', isMajor ? '1.5' : '0.8');
+      line.setAttribute('opacity', isMajor ? '0.7' : '0.35');
+      ticksGroup.appendChild(line);
     }
   }
 
   function updateTimerInterface() {
     const mins = state.currentMinutes;
-    const ratio = Math.min(Math.max(mins / maxMinutes, 0), 1);
-    const strokeOffset = dialCircumference * (1 - ratio);
+    const fraction = Math.min(1, Math.max(0, mins / MAX_MINUTES));
 
-    const arc = document.getElementById('progress-arc');
-    if (arc) {
-      arc.style.strokeDashoffset = strokeOffset;
+    // Update Arc Stroke Offset
+    const offset = CIRCLE_CIRCUMFERENCE * (1 - fraction);
+    if (progressArc) {
+      progressArc.style.strokeDasharray = CIRCLE_CIRCUMFERENCE.toFixed(1);
+      progressArc.style.strokeDashoffset = offset.toFixed(1);
     }
 
-    // Head Indicator Knob Position
-    const angleDeg = ratio * 360;
-    const angleRad = (angleDeg - 90) * (Math.PI / 180);
-    const knobX = 140 + dialRadius * Math.cos(angleRad);
-    const knobY = 140 + dialRadius * Math.sin(angleRad);
+    // Update Knob Indicator Coordinates (Dial SVG is rotated -90deg, 0 rad is at Top)
+    const angleRad = fraction * 2 * Math.PI;
+    const knobX = 140 + CIRCLE_RADIUS * Math.cos(angleRad);
+    const knobY = 140 + CIRCLE_RADIUS * Math.sin(angleRad);
 
-    const knob = document.getElementById('dial-knob');
-    const knobCore = document.getElementById('dial-knob-core');
-    if (knob && knobCore) {
-      knob.setAttribute('cx', knobX);
-      knob.setAttribute('cy', knobY);
-      knobCore.setAttribute('cx', knobX);
-      knobCore.setAttribute('cy', knobY);
+    if (dialKnob) {
+      dialKnob.setAttribute('cx', knobX.toFixed(2));
+      dialKnob.setAttribute('cy', knobY.toFixed(2));
+    }
+    if (dialKnobCore) {
+      dialKnobCore.setAttribute('cx', knobX.toFixed(2));
+      dialKnobCore.setAttribute('cy', knobY.toFixed(2));
     }
 
-    // Format Digital Display: HH:MM
+    // Formatted Text Displays
     const hours = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    const formatted = `${String(hours).padStart(2, '0')}:${String(remMins).padStart(2, '0')}`;
-    const displayEl = document.getElementById('display-duration');
-    if (displayEl) displayEl.innerText = formatted;
+    const remainingMins = mins % 60;
+    const formatted = `${String(hours).padStart(2, '0')}:${String(remainingMins).padStart(2, '0')}`;
+    if (durationDisplay) durationDisplay.innerText = formatted;
 
     // Calculate End Time
-    const now = new Date();
-    const future = new Date(now.getTime() + mins * 60000);
-    let h = future.getHours();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    const m = String(future.getMinutes()).padStart(2, '0');
-    const endEl = document.getElementById('display-end-time');
-    if (endEl) endEl.innerText = `UNTIL ${String(h).padStart(2, '0')}:${m} ${ampm}`;
+    const targetDate = new Date(Date.now() + mins * 60 * 1000);
+    const timeStr = targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (endTimeDisplay) endTimeDisplay.innerText = `UNTIL ${timeStr}`;
 
-    // Highlight Preset pill if exact match
+    // Update Suitcase Fraction in Card
+    const packedCount = state.suitcaseApps.filter(a => a.packed).length;
+    const totalApps = state.suitcaseApps.length;
+    const fractionEl = document.getElementById('focus-suitcase-fraction');
+    if (fractionEl) fractionEl.innerText = `${packedCount}/${totalApps}`;
+
+    // Update Preset Pills Highlight
     document.querySelectorAll('.preset-pill').forEach(btn => {
-      const pMin = parseInt(btn.getAttribute('data-mins'), 10);
-      if (pMin === mins) {
+      const pMins = parseInt(btn.getAttribute('data-mins'), 10);
+      if (pMins === mins) {
         btn.classList.add('bg-primary', 'text-on-primary', 'font-semibold');
         btn.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
       } else {
@@ -407,64 +448,71 @@
         btn.classList.add('bg-surface-container-low', 'text-on-surface-variant');
       }
     });
-
-    // Update Suitcase Badge Count
-    const packedCount = state.suitcaseApps.filter(a => a.packed).length;
-    const totalApps = state.suitcaseApps.length;
-    const badgeEl = document.getElementById('focus-suitcase-fraction');
-    if (badgeEl) badgeEl.innerText = `${packedCount}/${totalApps}`;
   }
 
   function setTime(mins) {
-    state.currentMinutes = Math.min(Math.max(mins, 5), maxMinutes);
+    state.currentMinutes = Math.min(720, Math.max(5, mins));
     saveState();
     updateTimerInterface();
+    sound.playChime('click');
+    hapticFeedback(15);
   }
 
-  function adjustTime(delta) {
-    setTime(state.currentMinutes + delta);
+  function adjustTime(deltaMins) {
+    setTime(state.currentMinutes + deltaMins);
   }
 
-  // Dial Click and Drag to set angle
-  const dial = document.getElementById('timer-dial');
+  // Dial Drag / Pointer Interaction
   let isDraggingDial = false;
 
-  function calculateDialAngle(e) {
-    if (!dial) return;
-    const rect = dial.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - cx;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - cy;
+  function handleDialPointer(e) {
+    if (!dialSvg) return;
+    const rect = dialSvg.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
 
-    // Angle clockwise from top (12 o'clock)
-    let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
-    if (angle < 0) angle += 360;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    let targetMins = Math.round((angle / 360) * maxMinutes / 5) * 5;
-    if (targetMins < 5) targetMins = 5;
-    setTime(targetMins);
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
+
+    // Angle in degrees clockwise from 12 o'clock
+    let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+    if (angleDeg < 0) angleDeg += 360;
+
+    let computedMins = Math.round((angleDeg / 360) * MAX_MINUTES);
+    // Snap to 5-minute increments
+    computedMins = Math.round(computedMins / 5) * 5;
+    if (computedMins === 0) computedMins = 5;
+
+    if (computedMins !== state.currentMinutes) {
+      state.currentMinutes = computedMins;
+      saveState();
+      updateTimerInterface();
+      hapticFeedback(10);
+    }
   }
 
-  if (dial) {
-    dial.addEventListener('mousedown', (e) => {
+  if (dialSvg) {
+    dialSvg.addEventListener('mousedown', (e) => {
       isDraggingDial = true;
-      calculateDialAngle(e);
+      handleDialPointer(e);
     });
     window.addEventListener('mousemove', (e) => {
-      if (isDraggingDial) calculateDialAngle(e);
+      if (isDraggingDial) handleDialPointer(e);
     });
     window.addEventListener('mouseup', () => {
       isDraggingDial = false;
     });
 
-    dial.addEventListener('touchstart', (e) => {
+    dialSvg.addEventListener('touchstart', (e) => {
       isDraggingDial = true;
-      calculateDialAngle(e);
-    }, { passive: true });
+      handleDialPointer(e);
+    }, { passive: false });
     window.addEventListener('touchmove', (e) => {
-      if (isDraggingDial && e.touches.length > 0) calculateDialAngle(e);
-    }, { passive: true });
+      if (isDraggingDial) handleDialPointer(e);
+    }, { passive: false });
     window.addEventListener('touchend', () => {
       isDraggingDial = false;
     });
@@ -508,16 +556,19 @@
     if (mode === 'study') {
       setTime(45);
       if (quoteEl) quoteEl.innerText = 'Deep academic focus';
-      if (badgeEl) badgeEl.innerText = 'POMODORO 45';
+      if (badgeEl) badgeEl.innerText = 'STRICT 0.9';
     } else if (mode === 'work') {
       setTime(60);
-      if (quoteEl) quoteEl.innerText = 'Unbroken flow sprint';
-      if (badgeEl) badgeEl.innerText = 'DEEP WORK 1.0';
+      if (quoteEl) quoteEl.innerText = 'Cognitive flow state';
+      if (badgeEl) badgeEl.innerText = 'FLOW ACTIVE';
     } else if (mode === 'sleep') {
       setTime(180);
-      if (quoteEl) quoteEl.innerText = 'Circadian sleep sanctuary';
-      if (badgeEl) badgeEl.innerText = 'NIGHT RIGOR';
+      if (quoteEl) quoteEl.innerText = 'Night sanctuary · Zero bypass';
+      if (badgeEl) badgeEl.innerText = 'SANCTUARY';
     }
+
+    sound.playChime('click');
+    hapticFeedback(20);
   }
 
   ['study', 'work', 'sleep'].forEach(m => {
@@ -530,6 +581,8 @@
   if (btnPackTrigger) {
     btnPackTrigger.addEventListener('click', () => {
       navigateToTab('suitcase');
+      sound.playChime('click');
+      hapticFeedback(15);
     });
   }
 
@@ -542,146 +595,146 @@
     const btn = document.getElementById('lockdown-btn');
     if (!btn) return;
     sound.playChime('lock');
+    hapticFeedback(50);
 
-    btn.innerHTML = `<span class="material-symbols-outlined text-[20px] animate-spin">refresh</span><span>ENGAGING PROTOCOL...</span>`;
-    btn.classList.add('opacity-80');
+    // Initial state transition
+    state.isLocked = true;
+    state.lockTotalSeconds = state.currentMinutes * 60;
+    state.lockSecondsRemaining = state.lockTotalSeconds;
+    saveState();
 
-    setTimeout(() => {
-      btn.innerHTML = `<span class="material-symbols-outlined text-[20px]">lock</span><span>Start Lockdown</span>`;
-      btn.classList.remove('opacity-80');
-
-      // Engage Lock
-      state.isLocked = true;
-      state.lockTotalSeconds = state.currentMinutes * 60;
-      state.lockSecondsRemaining = state.lockTotalSeconds;
-      saveState();
-
-      enterLockoutScreen();
-    }, 800);
+    enterLockoutScreen();
+    startCountdownTimer();
   }
 
-  const btnLockdown = document.getElementById('lockdown-btn');
-  if (btnLockdown) btnLockdown.addEventListener('click', triggerLockdown);
+  const lockdownBtn = document.getElementById('lockdown-btn');
+  if (lockdownBtn) {
+    lockdownBtn.addEventListener('click', triggerLockdown);
+  }
 
   function enterLockoutScreen() {
-    // Show Screen 2, Hide others
     document.querySelectorAll('.screen-view').forEach(s => s.classList.add('hidden'));
     const lockoutView = document.getElementById('view-lockout');
     if (lockoutView) lockoutView.classList.remove('hidden');
 
-    // Update Header Status
-    const statusText = document.getElementById('header-status-text');
-    const statusDot = document.getElementById('header-status-dot');
-    const headerTitle = document.getElementById('header-title');
-    if (statusText) statusText.innerText = 'Locked';
-    if (statusDot) {
-      statusDot.className = 'w-1.5 h-1.5 rounded-full bg-error animate-ping';
-    }
-    if (headerTitle) headerTitle.innerText = 'Active Lockout';
+    const nav = document.getElementById('app-bottom-nav');
+    if (nav) nav.classList.add('hidden');
 
-    // Update Lockout Mode Indicator
+    const headerTitle = document.getElementById('header-title');
+    const headerStatusDot = document.getElementById('header-status-dot');
+    const headerStatusText = document.getElementById('header-status-text');
+
+    if (headerTitle) headerTitle.innerText = 'LOCKED';
+    if (headerStatusDot) {
+      headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-error animate-ping';
+    }
+    if (headerStatusText) {
+      headerStatusText.className = 'font-label-sm text-label-sm uppercase text-error font-bold';
+      headerStatusText.innerText = 'ARMED';
+    }
+
     const modeIndicator = document.getElementById('lock-mode-indicator');
     if (modeIndicator) {
-      const modeNames = { study: 'Session · Deep Academic', work: 'Session · Deep Work', sleep: 'Sanctuary · Sleep Lock' };
-      modeIndicator.innerText = modeNames[state.selectedMode] || 'Session · Deep Work';
+      modeIndicator.innerText = `SESSION · ${state.selectedMode.toUpperCase()} SPRINT`;
     }
 
-    // Compute End Time Remark
-    const targetTime = new Date(Date.now() + state.lockSecondsRemaining * 1000);
-    let h = targetTime.getHours();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    const m = String(targetTime.getMinutes()).padStart(2, '0');
-    const remarkEl = document.getElementById('lock-ends-remark');
-    if (remarkEl) remarkEl.innerText = `Ends strictly at ${h}:${m} ${ampm} · Stay disciplined`;
-
-    // Render allowed suitcase dock
     renderLockSuitcaseDock();
-
-    // Start Countdown
-    startCountdown();
-  }
-
-  function startCountdown() {
-    if (countdownInterval) clearInterval(countdownInterval);
-
-    function tick() {
-      if (state.lockSecondsRemaining > 0) {
-        state.lockSecondsRemaining--;
-        updateCountdownDisplay();
-      } else {
-        // Complete Session
-        clearInterval(countdownInterval);
-        completeSession();
-      }
-    }
-
-    updateCountdownDisplay();
-    countdownInterval = setInterval(tick, 1000);
-  }
-
-  function updateCountdownDisplay() {
-    const s = state.lockSecondsRemaining;
-    const hrs = String(Math.floor(s / 3600)).padStart(2, '0');
-    const mins = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-    const secs = String(s % 60).padStart(2, '0');
-
-    const timerEl = document.getElementById('mainTimer');
-    if (timerEl) timerEl.innerText = `${hrs}:${mins}:${secs}`;
-
-    const pillCountdown = document.getElementById('pill-countdown');
-    if (pillCountdown) {
-      if (s >= 3600) {
-        pillCountdown.innerText = `${hrs}:${mins} Left`;
-      } else {
-        pillCountdown.innerText = `${mins}:${secs} Left`;
-      }
-    }
-  }
-
-  function completeSession() {
-    sound.playChime('success');
-    state.isLocked = false;
-    
-    // Build New Tower Floor!
-    state.tower.streakDays++;
-    state.tower.floorsCount++;
-    state.tower.totalFocusHours += Math.round((state.lockTotalSeconds / 3600) * 10) / 10;
-    
-    const newFloor = {
-      floor: state.tower.floorsCount,
-      mode: state.selectedMode === 'study' ? 'Study Sprint' : (state.selectedMode === 'work' ? 'Deep Work' : 'Night Sleep'),
-      duration: Math.round(state.lockTotalSeconds / 60),
-      date: 'Today',
-      parachutes: 0
-    };
-    state.tower.floors.push(newFloor);
-    saveState();
-
-    alert(`🎉 FOCUS COMPLETE!\nFloor ${newFloor.floor} added to your Tower Skyscraper.`);
-    exitLockoutToFocus();
+    updateLockoutDisplay();
   }
 
   function exitLockoutToFocus() {
-    if (countdownInterval) clearInterval(countdownInterval);
     state.isLocked = false;
+    state.lockSecondsRemaining = 0;
     saveState();
 
-    // Restore Header Status
-    const statusText = document.getElementById('header-status-text');
-    const statusDot = document.getElementById('header-status-dot');
-    const headerTitle = document.getElementById('header-title');
-    if (statusText) statusText.innerText = 'Ready';
-    if (statusDot) {
-      statusDot.className = 'w-1.5 h-1.5 rounded-full bg-primary animate-pulse';
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
     }
+
+    const nav = document.getElementById('app-bottom-nav');
+    if (nav) nav.classList.remove('hidden');
+
+    const headerTitle = document.getElementById('header-title');
+    const headerStatusDot = document.getElementById('header-status-dot');
+    const headerStatusText = document.getElementById('header-status-text');
+
     if (headerTitle) headerTitle.innerText = 'blockWho';
+    if (headerStatusDot) {
+      headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-primary animate-pulse';
+    }
+    if (headerStatusText) {
+      headerStatusText.className = 'font-label-sm text-label-sm uppercase text-on-surface-variant';
+      headerStatusText.innerText = 'READY';
+    }
 
     navigateToTab('focus');
   }
 
+  function startCountdownTimer() {
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    countdownInterval = setInterval(() => {
+      if (state.lockSecondsRemaining <= 1) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        completeLockoutSession();
+      } else {
+        state.lockSecondsRemaining--;
+        saveState();
+        updateLockoutDisplay();
+      }
+    }, 1000);
+  }
+
+  function updateLockoutDisplay() {
+    const totalSecs = state.lockSecondsRemaining;
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+
+    const timerStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const mainTimer = document.getElementById('mainTimer');
+    const pillCountdown = document.getElementById('pill-countdown');
+
+    if (mainTimer) mainTimer.innerText = timerStr;
+    if (pillCountdown) pillCountdown.innerText = `${mins}m ${secs}s Left`;
+
+    const targetDate = new Date(Date.now() + totalSecs * 1000);
+    const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const lockRemark = document.getElementById('lock-ends-remark');
+    if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr} · Stay disciplined`;
+  }
+
+  function completeLockoutSession() {
+    sound.playChime('success');
+    hapticFeedback(60);
+
+    // Build new tower floor
+    const newFloorNum = state.tower.floors.length + 1;
+    const sessionHours = state.lockTotalSeconds / 3600;
+
+    state.tower.floorsCount = newFloorNum;
+    state.tower.streakDays += 1;
+    state.tower.totalFocusHours = Math.round((state.tower.totalFocusHours + sessionHours) * 10) / 10;
+
+    const todayStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    state.tower.floors.push({
+      floor: newFloorNum,
+      mode: state.selectedMode === 'study' ? 'Study Sprint' : state.selectedMode === 'sleep' ? 'Sleep Sanctuary' : 'Deep Work',
+      duration: Math.round(state.lockTotalSeconds / 60),
+      date: todayStr,
+      parachutes: 0
+    });
+
+    saveState();
+    renderTowerTab();
+    exitLockoutToFocus();
+    alert('Session complete! Tower floor added.');
+  }
+
   // ==========================================
-  // 5. EXTEND TIME (+15M HOLD 3S MECHANIC)
+  // 5. EXTEND LOCKOUT (+15M HOLD MECHANIC)
   // ==========================================
   const addTimeBtn = document.getElementById('addTimeBtn');
   const addTimeProgress = document.getElementById('addTimeProgress');
@@ -706,6 +759,7 @@
         addTimeProgress.style.width = '0%';
       }
       sound.playChime('success');
+      hapticFeedback(40);
       if (addTimeLabel) {
         const originalText = addTimeLabel.innerText;
         addTimeLabel.innerText = "+15M EXTENDED!";
@@ -750,7 +804,6 @@
       chuteProgress.style.width = '100%';
     }
 
-    // Invert contrast dynamically near halfway
     setTimeout(() => {
       if (chuteTimer && chuteLabel && chuteIcon) {
         chuteLabel.classList.remove('text-primary');
@@ -763,6 +816,7 @@
     chuteTimer = setTimeout(() => {
       // Completed full 3-second hold!
       sound.playChime('alert');
+      hapticFeedback(80);
       if (chuteLabel) chuteLabel.innerText = "PARACHUTE DEPLOYED";
       if (streakWarning) {
         streakWarning.innerText = "Session unlocked via parachute";
@@ -833,6 +887,7 @@
       currentSnapIdx = (currentSnapIdx + 1) % snapClasses.length;
       floatingPill.classList.add(snapClasses[currentSnapIdx]);
       sound.playChime('click');
+      hapticFeedback(15);
     });
   }
 
@@ -874,6 +929,8 @@
         renderSuitcaseTab();
         updateTimerInterface();
         renderLockSuitcaseDock();
+        sound.playChime('click');
+        hapticFeedback(15);
       });
 
       container.appendChild(card);
@@ -889,14 +946,14 @@
     const badge = document.getElementById('lock-suitcase-allowed-badge');
     if (badge) badge.innerText = `${packed.length} Allowed`;
 
-    packed.slice(0, 3).forEach(app => {
+    packed.forEach(app => {
       const btn = document.createElement('button');
-      btn.className = 'flex flex-col items-center justify-center p-3 rounded-DEFAULT bg-surface-container-high hover:bg-surface-variant active:scale-95 transition-all';
+      btn.className = 'flex flex-col items-center justify-center p-3 rounded-DEFAULT bg-surface-container-high hover:bg-surface-variant active:scale-95 transition-all cursor-pointer';
       btn.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center mb-2">
           <span class="material-symbols-outlined text-[20px] text-primary">${app.icon}</span>
         </div>
-        <span class="font-label-sm text-label-sm text-primary font-medium tracking-wide">${app.name.split(' ')[0]}</span>
+        <span class="font-label-sm text-label-sm text-primary font-medium tracking-wide truncate max-w-[80px]">${app.name.split(' ')[0]}</span>
         <div class="flex items-center gap-0.5 mt-1">
           <span class="font-label-sm text-[9px] text-outline">LAUNCH</span>
           <span class="material-symbols-outlined text-[10px] text-outline">arrow_outward</span>
@@ -917,8 +974,128 @@
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    sound.playChime('click');
+    hapticFeedback(20);
 
-    if (appId === 'maps') {
+    if (appId === 'calc') {
+      // Functional Calculator
+      if (titleEl) titleEl.innerText = 'Calculator';
+      if (iconEl) iconEl.innerText = 'calculate';
+      contentEl.innerHTML = `
+        <div class="flex-1 flex flex-col space-y-3">
+          <!-- Calculator Screen Display -->
+          <div class="w-full rounded-xl bg-surface-container-lowest border border-white/10 p-3 flex flex-col justify-end text-right">
+            <div class="font-mono text-xs text-outline tracking-wider h-5 overflow-hidden" id="calc-history"></div>
+            <div class="font-mono text-2xl font-bold text-white tracking-tight h-8 overflow-hidden select-all" id="calc-display">0</div>
+          </div>
+          <!-- Calculator Keypad (4x5 Grid) -->
+          <div class="grid grid-cols-4 gap-1.5">
+            <button class="calc-key h-11 rounded-lg bg-surface-container-high hover:bg-surface-variant active:scale-95 text-sm font-mono font-bold text-error transition-all" data-action="clear">C</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-high hover:bg-surface-variant active:scale-95 text-sm font-mono font-bold text-white transition-all" data-action="negate">±</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-high hover:bg-surface-variant active:scale-95 text-sm font-mono font-bold text-white transition-all" data-action="percent">%</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-highest hover:bg-white hover:text-black active:scale-95 text-base font-mono font-bold text-primary transition-all" data-action="op" data-val="/">÷</button>
+
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="7">7</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="8">8</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="9">9</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-highest hover:bg-white hover:text-black active:scale-95 text-base font-mono font-bold text-primary transition-all" data-action="op" data-val="*">×</button>
+
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="4">4</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="5">5</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="6">6</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-highest hover:bg-white hover:text-black active:scale-95 text-base font-mono font-bold text-primary transition-all" data-action="op" data-val="-">-</button>
+
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="1">1</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="2">2</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="num" data-val="3">3</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container-highest hover:bg-white hover:text-black active:scale-95 text-base font-mono font-bold text-primary transition-all" data-action="op" data-val="+">+</button>
+
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white col-span-2 transition-all" data-action="num" data-val="0">0</button>
+            <button class="calc-key h-11 rounded-lg bg-surface-container hover:bg-surface-variant active:scale-95 text-base font-mono font-bold text-white transition-all" data-action="dot">.</button>
+            <button class="calc-key h-11 rounded-lg bg-primary text-black font-bold hover:bg-white active:scale-95 text-base font-mono transition-all" data-action="equals">=</button>
+          </div>
+        </div>
+      `;
+
+      let currentInput = '0';
+      let previousInput = '';
+      let currentOp = null;
+      let shouldResetDisplay = false;
+
+      function updateCalcUI() {
+        const display = document.getElementById('calc-display');
+        const history = document.getElementById('calc-history');
+        if (display) display.innerText = currentInput;
+        if (history) {
+          history.innerText = previousInput + (currentOp ? ' ' + currentOp : '');
+        }
+      }
+
+      function compute() {
+        const prev = parseFloat(previousInput);
+        const curr = parseFloat(currentInput);
+        if (isNaN(prev) || isNaN(curr)) return;
+        let res = 0;
+        if (currentOp === '+') res = prev + curr;
+        else if (currentOp === '-') res = prev - curr;
+        else if (currentOp === '*') res = prev * curr;
+        else if (currentOp === '/') res = curr === 0 ? 'Error' : prev / curr;
+        currentInput = typeof res === 'number' ? String(Math.round(res * 100000000) / 100000000) : res;
+      }
+
+      document.querySelectorAll('.calc-key').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playChime('click');
+          hapticFeedback(15);
+          const action = btn.getAttribute('data-action');
+          const val = btn.getAttribute('data-val');
+
+          if (action === 'num') {
+            if (currentInput === '0' || shouldResetDisplay) {
+              currentInput = val;
+              shouldResetDisplay = false;
+            } else {
+              if (currentInput.length < 12) currentInput += val;
+            }
+          } else if (action === 'dot') {
+            if (shouldResetDisplay) {
+              currentInput = '0.';
+              shouldResetDisplay = false;
+            } else if (!currentInput.includes('.')) {
+              currentInput += '.';
+            }
+          } else if (action === 'clear') {
+            currentInput = '0';
+            previousInput = '';
+            currentOp = null;
+            shouldResetDisplay = false;
+          } else if (action === 'negate') {
+            if (currentInput !== '0') {
+              currentInput = currentInput.startsWith('-') ? currentInput.slice(1) : '-' + currentInput;
+            }
+          } else if (action === 'percent') {
+            const num = parseFloat(currentInput);
+            if (!isNaN(num)) currentInput = String(num / 100);
+          } else if (action === 'op') {
+            if (currentOp && !shouldResetDisplay) {
+              compute();
+            }
+            previousInput = currentInput;
+            currentOp = val;
+            shouldResetDisplay = true;
+          } else if (action === 'equals') {
+            if (currentOp && previousInput) {
+              compute();
+              currentOp = null;
+              previousInput = '';
+              shouldResetDisplay = true;
+            }
+          }
+          updateCalcUI();
+        });
+      });
+
+    } else if (appId === 'maps') {
       if (titleEl) titleEl.innerText = 'Google Maps & Transit';
       if (iconEl) iconEl.innerText = 'navigation';
       contentEl.innerHTML = `
@@ -951,16 +1128,16 @@
       contentEl.innerHTML = `
         <div class="flex-1 flex flex-col space-y-4">
           <div class="grid grid-cols-2 gap-2" id="soundscape-types">
-            <button class="sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all" data-type="binaural">
+            <button class="sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="binaural">
               40Hz Gamma Beat
             </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all" data-type="brown">
+            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="brown">
               Cabin Brown Noise
             </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all" data-type="rain">
+            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="rain">
               Gentle Rain
             </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all" data-type="white">
+            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="white">
               Pure White Noise
             </button>
           </div>
@@ -971,7 +1148,7 @@
             </div>
             <input type="range" min="0" max="100" value="50" id="sound-vol-slider" class="w-full accent-white h-1.5 bg-surface-container-highest rounded-lg cursor-pointer">
           </div>
-          <button id="btn-toggle-soundscape" class="w-full py-3 rounded-full bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-container transition-all flex items-center justify-center gap-2">
+          <button id="btn-toggle-soundscape" class="w-full py-3 rounded-full bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer">
             <span class="material-symbols-outlined text-[18px]">play_arrow</span>
             <span id="soundscape-btn-label">Start Soundscape</span>
           </button>
@@ -988,10 +1165,12 @@
       chips.forEach(chip => {
         chip.addEventListener('click', () => {
           chips.forEach(c => {
-            c.className = 'sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all';
+            c.className = 'sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
           });
-          chip.className = 'sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all';
+          chip.className = 'sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
           const type = chip.getAttribute('data-type');
+          sound.playChime('click');
+          hapticFeedback(15);
           if (sound.isPlaying) {
             sound.startSoundscape(type);
           } else {
@@ -1010,6 +1189,8 @@
 
       if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
+          sound.init();
+          hapticFeedback(25);
           if (sound.isPlaying) {
             sound.stopSoundscape();
             if (label) label.innerText = 'Start Soundscape';
@@ -1022,7 +1203,7 @@
       }
 
     } else if (appId === 'phone') {
-      if (titleEl) titleEl.innerText = 'Distraction-Free Phone';
+      if (titleEl) titleEl.innerText = 'Emergency Calls';
       if (iconEl) iconEl.innerText = 'call';
       contentEl.innerHTML = `
         <div class="flex-1 flex flex-col space-y-3">
@@ -1031,17 +1212,17 @@
           </div>
           <div class="grid grid-cols-3 gap-2">
             ${['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => `
-              <button class="keypad-digit h-12 rounded-xl bg-surface-container hover:bg-surface-variant active:scale-95 text-lg font-mono font-bold text-white transition-all" data-key="${d}">
+              <button class="keypad-digit h-12 rounded-xl bg-surface-container hover:bg-surface-variant active:scale-95 text-lg font-mono font-bold text-white transition-all cursor-pointer" data-key="${d}">
                 ${d}
               </button>
             `).join('')}
           </div>
           <div class="flex gap-2 pt-1">
-            <button class="flex-1 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-label-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5" onclick="alert('Calling: ' + (document.getElementById('dial-screen').innerText || 'Emergency Dispatch'))">
+            <button class="flex-1 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-label-md text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer" id="btn-dispatch-call">
               <span class="material-symbols-outlined text-[18px]">call</span>
               <span>Dispatch Call</span>
             </button>
-            <button class="w-12 h-12 rounded-full bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center font-bold" id="btn-dial-backspace">
+            <button class="w-12 h-12 rounded-full bg-surface-container-high hover:bg-surface-variant text-white flex items-center justify-center font-bold active:scale-95 cursor-pointer" id="btn-dial-backspace">
               ⌫
             </button>
           </div>
@@ -1053,6 +1234,7 @@
         btn.addEventListener('click', () => {
           const k = btn.getAttribute('data-key');
           sound.playDTMF(k);
+          hapticFeedback(15);
           if (screen) screen.innerText = (screen.innerText + k).slice(0, 14);
         });
       });
@@ -1060,27 +1242,78 @@
       const bsp = document.getElementById('btn-dial-backspace');
       if (bsp) {
         bsp.addEventListener('click', () => {
+          hapticFeedback(15);
           if (screen) screen.innerText = screen.innerText.slice(0, -1);
         });
       }
+
+      const dispatchCall = document.getElementById('btn-dispatch-call');
+      if (dispatchCall) {
+        dispatchCall.addEventListener('click', () => {
+          hapticFeedback(30);
+          const num = screen.innerText || '911';
+          window.location.href = `tel:${num}`;
+        });
+      }
+
     } else {
-      // General scratchpad / fallback
-      if (titleEl) titleEl.innerText = 'Zenith Scratchpad';
+      // Quick Scratchpad
+      if (titleEl) titleEl.innerText = 'Quick Scratchpad';
       if (iconEl) iconEl.innerText = 'edit_note';
       contentEl.innerHTML = `
         <div class="flex-1 flex flex-col space-y-2">
           <textarea id="scratch-textarea" class="w-full h-44 rounded-xl bg-surface-container-lowest border border-white/10 p-3 text-sm text-white font-mono outline-none resize-none focus:border-white/30" placeholder="Type thoughts here...">${state.scratchpadContent}</textarea>
           <div class="flex justify-between items-center text-[11px] font-label-sm text-outline">
-            <span>Auto-saved to local memory</span>
-            <span class="text-primary font-bold">Encrypted</span>
+            <span id="scratch-char-count">${state.scratchpadContent.length} chars</span>
+            <div class="flex items-center gap-2">
+              <button id="btn-copy-scratch" class="px-2.5 py-1 rounded-md bg-surface-container hover:bg-surface-variant text-white flex items-center gap-1 text-[11px] cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">content_copy</span>
+                <span id="copy-scratch-label">Copy</span>
+              </button>
+              <button id="btn-clear-scratch" class="px-2.5 py-1 rounded-md bg-surface-container hover:bg-surface-variant text-error flex items-center gap-1 text-[11px] cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">delete</span>
+                <span>Clear</span>
+              </button>
+            </div>
           </div>
         </div>
       `;
+
       const ta = document.getElementById('scratch-textarea');
+      const charCount = document.getElementById('scratch-char-count');
       if (ta) {
         ta.addEventListener('input', (e) => {
           state.scratchpadContent = e.target.value;
+          if (charCount) charCount.innerText = `${state.scratchpadContent.length} chars`;
           saveState();
+        });
+      }
+
+      const copyBtn = document.getElementById('btn-copy-scratch');
+      const copyLabel = document.getElementById('copy-scratch-label');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(state.scratchpadContent || '');
+          sound.playChime('click');
+          hapticFeedback(20);
+          if (copyLabel) {
+            copyLabel.innerText = 'Copied!';
+            setTimeout(() => { copyLabel.innerText = 'Copy'; }, 1500);
+          }
+        });
+      }
+
+      const clearBtn = document.getElementById('btn-clear-scratch');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          if (confirm('Clear scratchpad content?')) {
+            state.scratchpadContent = '';
+            if (ta) ta.value = '';
+            if (charCount) charCount.innerText = '0 chars';
+            saveState();
+            sound.playChime('click');
+            hapticFeedback(20);
+          }
         });
       }
     }
@@ -1094,6 +1327,8 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
       }
+      sound.playChime('click');
+      hapticFeedback(15);
     });
   }
 
@@ -1130,6 +1365,8 @@
 
       slab.addEventListener('click', () => {
         inspectFloor(f);
+        sound.playChime('click');
+        hapticFeedback(15);
       });
 
       stack.appendChild(slab);
@@ -1174,17 +1411,36 @@
             </div>
           </div>
         </div>
-        <label class="relative inline-flex items-center cursor-pointer">
-          <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''} class="sr-only peer">
-          <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-        </label>
+        <div class="flex items-center gap-2">
+          <button class="btn-delete-routine w-8 h-8 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Delete routine">
+            <span class="material-symbols-outlined text-[16px]">delete</span>
+          </button>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''} class="sr-only peer">
+            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          </label>
+        </div>
       `;
 
       const input = card.querySelector('input');
       input.addEventListener('change', (e) => {
         r.active = e.target.checked;
         saveState();
+        sound.playChime('click');
+        hapticFeedback(15);
       });
+
+      const delBtn = card.querySelector('.btn-delete-routine');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.routines = state.routines.filter(item => item.id !== r.id);
+          saveState();
+          renderRoutinesTab();
+          sound.playChime('click');
+          hapticFeedback(20);
+        });
+      }
 
       container.appendChild(card);
     });
@@ -1201,6 +1457,8 @@
       if (modalRoutine) {
         modalRoutine.classList.remove('hidden');
         modalRoutine.classList.add('flex');
+        sound.playChime('click');
+        hapticFeedback(15);
       }
     });
   }
@@ -1222,6 +1480,8 @@
       chip.classList.toggle('text-black');
       chip.classList.toggle('text-white');
       chip.classList.toggle('bg-surface-container-high');
+      sound.playChime('click');
+      hapticFeedback(10);
     });
   });
 
@@ -1254,6 +1514,8 @@
         modalRoutine.classList.remove('flex');
       }
       formRoutine.reset();
+      sound.playChime('success');
+      hapticFeedback(30);
     });
   }
 
@@ -1311,47 +1573,266 @@
       e.preventDefault();
       const tab = btn.getAttribute('data-tab');
       navigateToTab(tab);
+      sound.playChime('click');
+      hapticFeedback(15);
     });
   });
 
-  // ==========================================
-  // 12. DESKTOP HARNESS & TEST SHIELD INTERCEPT
-  // ==========================================
-  const viewToggle = document.getElementById('view-mode-toggle');
-  const viewLabel = document.getElementById('view-mode-label');
-  const frame = document.getElementById('mobile-frame');
-
-  if (viewToggle && frame) {
-    viewToggle.addEventListener('click', () => {
-      const isEdge = frame.classList.toggle('edge-to-edge');
-      if (viewLabel) {
-        viewLabel.innerText = isEdge ? 'Edge-to-Edge' : 'Phone Frame';
-      }
-    });
-  }
-
-  // Simulate unauthorized app intercept
-  const testShieldBtn = document.getElementById('test-shield-btn');
+  // Shield Intercept Alert Dismissal
   const modalShield = document.getElementById('modal-shield');
   const btnDismissShield = document.getElementById('btn-dismiss-shield');
-
-  if (testShieldBtn && modalShield) {
-    testShieldBtn.addEventListener('click', () => {
-      sound.playChime('alert');
-      modalShield.classList.remove('hidden');
-      modalShield.classList.add('flex');
-    });
-  }
-
   if (btnDismissShield && modalShield) {
     btnDismissShield.addEventListener('click', () => {
       modalShield.classList.add('hidden');
       modalShield.classList.remove('flex');
+      sound.playChime('click');
+      hapticFeedback(15);
     });
   }
 
   // ==========================================
-  // 13. INITIALIZATION
+  // 12. PERMISSIONS SETUP & FIRST-RUN ONBOARDING
+  // ==========================================
+  function showPermissionsModal() {
+    const modal = document.getElementById('modal-permissions');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      window.refreshPermissionBadges();
+      sound.playChime('click');
+      hapticFeedback(20);
+    }
+  }
+
+  function checkAndShowPermissionsOnboarding() {
+    const configured = localStorage.getItem('blockwho_permissions_configured');
+    if (!configured) {
+      // First-time app open: trigger permissions onboarding modal
+      setTimeout(showPermissionsModal, 400);
+    }
+  }
+
+  window.refreshPermissionBadges = function() {
+    const isAndroid = !!window.AndroidBridge;
+
+    // 1. Usage stats
+    const usageGranted = isAndroid ? window.AndroidBridge.hasUsageStatsPermission() : false;
+    const badgeUsage = document.getElementById('badge-perm-usage');
+    const labelUsage = document.getElementById('label-grant-usage');
+    if (badgeUsage) {
+      badgeUsage.className = usageGranted
+        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-error-container/30 text-error border border-error/30';
+      badgeUsage.innerText = usageGranted ? '✓ Granted' : 'Required';
+    }
+    if (labelUsage) {
+      labelUsage.innerText = usageGranted ? 'Usage Access Active' : 'Grant Usage Access';
+    }
+
+    // 2. Overlay
+    const overlayGranted = isAndroid ? window.AndroidBridge.hasOverlayPermission() : false;
+    const badgeOverlay = document.getElementById('badge-perm-overlay');
+    const labelOverlay = document.getElementById('label-grant-overlay');
+    if (badgeOverlay) {
+      badgeOverlay.className = overlayGranted
+        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-error-container/30 text-error border border-error/30';
+      badgeOverlay.innerText = overlayGranted ? '✓ Granted' : 'Required';
+    }
+    if (labelOverlay) {
+      labelOverlay.innerText = overlayGranted ? 'Overlay Access Active' : 'Grant Overlay Access';
+    }
+
+    // 3. Notifications
+    const notifGranted = isAndroid ? window.AndroidBridge.hasNotificationPermission() : false;
+    const badgeNotif = document.getElementById('badge-perm-notif');
+    const labelNotif = document.getElementById('label-grant-notif');
+    if (badgeNotif) {
+      badgeNotif.className = notifGranted
+        ? 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+        : 'px-2 py-0.5 rounded-full text-[10px] font-label-sm font-bold bg-surface-container-high text-outline';
+      badgeNotif.innerText = notifGranted ? '✓ Granted' : 'Recommended';
+    }
+    if (labelNotif) {
+      labelNotif.innerText = notifGranted ? 'Notifications Active' : 'Allow Notifications';
+    }
+  };
+
+  const btnGrantUsage = document.getElementById('btn-grant-usage');
+  if (btnGrantUsage) {
+    btnGrantUsage.addEventListener('click', () => {
+      sound.playChime('click');
+      hapticFeedback(20);
+      if (window.AndroidBridge && typeof window.AndroidBridge.requestUsageStatsPermission === 'function') {
+        window.AndroidBridge.requestUsageStatsPermission();
+      } else {
+        alert('Usage stats permission opens system settings on Android devices.');
+      }
+    });
+  }
+
+  const btnGrantOverlay = document.getElementById('btn-grant-overlay');
+  if (btnGrantOverlay) {
+    btnGrantOverlay.addEventListener('click', () => {
+      sound.playChime('click');
+      hapticFeedback(20);
+      if (window.AndroidBridge && typeof window.AndroidBridge.requestOverlayPermission === 'function') {
+        window.AndroidBridge.requestOverlayPermission();
+      } else {
+        alert('Overlay permission opens system settings on Android devices.');
+      }
+    });
+  }
+
+  const btnGrantNotif = document.getElementById('btn-grant-notif');
+  if (btnGrantNotif) {
+    btnGrantNotif.addEventListener('click', () => {
+      sound.playChime('click');
+      hapticFeedback(20);
+      if (window.AndroidBridge && typeof window.AndroidBridge.requestNotificationPermission === 'function') {
+        window.AndroidBridge.requestNotificationPermission();
+      } else if ('Notification' in window) {
+        Notification.requestPermission().then(() => window.refreshPermissionBadges());
+      }
+    });
+  }
+
+  const btnCompletePermissions = document.getElementById('btn-complete-permissions');
+  const btnClosePermissionsModal = document.getElementById('btn-close-permissions-modal');
+
+  function dismissPermissionsModal() {
+    localStorage.setItem('blockwho_permissions_configured', 'true');
+    const modal = document.getElementById('modal-permissions');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    sound.playChime('success');
+    hapticFeedback(30);
+  }
+
+  if (btnCompletePermissions) btnCompletePermissions.addEventListener('click', dismissPermissionsModal);
+  if (btnClosePermissionsModal) btnClosePermissionsModal.addEventListener('click', dismissPermissionsModal);
+
+  // ==========================================
+  // 13. PROFILE & SYSTEM SETTINGS MODAL
+  // ==========================================
+  const btnHeaderProfile = document.getElementById('btn-header-profile');
+  const modalProfile = document.getElementById('modal-profile');
+  const btnCloseProfile = document.getElementById('btn-close-profile-modal');
+
+  if (btnHeaderProfile && modalProfile) {
+    btnHeaderProfile.addEventListener('click', () => {
+      const streakVal = document.getElementById('profile-streak-val');
+      const hoursVal = document.getElementById('profile-hours-val');
+      const chuteVal = document.getElementById('profile-parachute-count');
+
+      if (streakVal) streakVal.innerText = `${state.tower.streakDays} Days`;
+      if (hoursVal) hoursVal.innerText = `${state.tower.totalFocusHours}h`;
+      if (chuteVal) chuteVal.innerText = `${state.parachutesCount} remaining`;
+
+      modalProfile.classList.remove('hidden');
+      modalProfile.classList.add('flex');
+      sound.playChime('click');
+      hapticFeedback(20);
+    });
+  }
+
+  if (btnCloseProfile && modalProfile) {
+    btnCloseProfile.addEventListener('click', () => {
+      modalProfile.classList.add('hidden');
+      modalProfile.classList.remove('flex');
+      sound.playChime('click');
+      hapticFeedback(15);
+    });
+  }
+
+  const toggleHaptics = document.getElementById('toggle-haptics');
+  if (toggleHaptics) {
+    toggleHaptics.checked = state.hapticsEnabled !== false;
+    toggleHaptics.addEventListener('change', (e) => {
+      state.hapticsEnabled = e.target.checked;
+      saveState();
+      hapticFeedback(30);
+    });
+  }
+
+  const toggleAudio = document.getElementById('toggle-audio-effects');
+  if (toggleAudio) {
+    toggleAudio.checked = state.audioEnabled !== false;
+    toggleAudio.addEventListener('change', (e) => {
+      state.audioEnabled = e.target.checked;
+      saveState();
+      sound.playChime('click');
+    });
+  }
+
+  const btnOpenPermManager = document.getElementById('btn-open-perm-manager');
+  if (btnOpenPermManager) {
+    btnOpenPermManager.addEventListener('click', () => {
+      if (modalProfile) {
+        modalProfile.classList.add('hidden');
+        modalProfile.classList.remove('flex');
+      }
+      showPermissionsModal();
+    });
+  }
+
+  const btnResetAppData = document.getElementById('btn-reset-app-data');
+  if (btnResetAppData) {
+    btnResetAppData.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset all streak progress, routines, and app data? This cannot be undone.')) {
+        localStorage.clear();
+        location.reload();
+      }
+    });
+  }
+
+  // ==========================================
+  // 14. EMERGENCY PARACHUTE INFO DIALOG
+  // ==========================================
+  const btnHeaderParachute = document.getElementById('btn-header-parachute');
+  const modalParachuteInfo = document.getElementById('modal-parachute-info');
+  const btnCloseParachuteInfo = document.getElementById('btn-close-parachute-info');
+  const btnDismissParachuteInfo = document.getElementById('btn-dismiss-parachute-info');
+
+  if (btnHeaderParachute) {
+    btnHeaderParachute.addEventListener('click', () => {
+      if (state.isLocked) {
+        // If locked, scroll smoothly to the parachute long-press button
+        const chuteBtnEl = document.getElementById('parachuteBtn');
+        if (chuteBtnEl) {
+          chuteBtnEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          chuteBtnEl.classList.add('ring-2', 'ring-white/50');
+          setTimeout(() => chuteBtnEl.classList.remove('ring-2', 'ring-white/50'), 1500);
+        }
+      } else {
+        if (modalParachuteInfo) {
+          const statusEl = document.getElementById('parachute-info-status');
+          if (statusEl) statusEl.innerText = `${state.parachutesCount} Available`;
+          modalParachuteInfo.classList.remove('hidden');
+          modalParachuteInfo.classList.add('flex');
+        }
+      }
+      sound.playChime('click');
+      hapticFeedback(20);
+    });
+  }
+
+  function dismissParachuteInfo() {
+    if (modalParachuteInfo) {
+      modalParachuteInfo.classList.add('hidden');
+      modalParachuteInfo.classList.remove('flex');
+    }
+    sound.playChime('click');
+    hapticFeedback(15);
+  }
+
+  if (btnCloseParachuteInfo) btnCloseParachuteInfo.addEventListener('click', dismissParachuteInfo);
+  if (btnDismissParachuteInfo) btnDismissParachuteInfo.addEventListener('click', dismissParachuteInfo);
+
+  // ==========================================
+  // 15. INITIALIZATION
   // ==========================================
   generateDialTicks();
   updateTimerInterface();
@@ -1362,8 +1843,12 @@
 
   if (state.isLocked && state.lockSecondsRemaining > 0) {
     enterLockoutScreen();
+    startCountdownTimer();
   } else {
     navigateToTab('focus');
   }
+
+  // Check first run permissions
+  checkAndShowPermissionsOnboarding();
 
 })();

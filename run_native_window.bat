@@ -1,7 +1,7 @@
 @echo off
-title blockWho · Zenith Monolith Lockdown
+title blockWho · Pure Focus & App Lockdown
 echo ========================================================
-echo   Launching blockWho Zenith Monolith (Native WebView2)
+echo   Launching blockWho Focus Service (Native WebView2)
 echo ========================================================
 python "%~dp0native_launcher.py"
 pause

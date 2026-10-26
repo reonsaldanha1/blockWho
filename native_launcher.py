@@ -48,7 +48,7 @@ def main():
     print(f"[*] Opening native desktop window...")
 
     window = webview.create_window(
-        title="blockWho · Zenith Monolith Lockdown (Native Window)",
+        title="blockWho · Pure Focus & App Lockdown (Native Window)",
         url=url,
         width=450,
         height=920,

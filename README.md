@@ -81,12 +81,13 @@ Procedural audio synthesis generated directly in real-time without external audi
 
 ---
 
-### 8. 📱 Native Desktop Window & Test Harness
-- **Edge WebView2 Native Window**: Packaged with `pywebview` for native Windows desktop execution.
-- **Shell Controls**:
-  - **Phone Frame / Edge-to-Edge Toggle**: Switch between realistic phone bezel and full desktop view.
-  - **App Intercept Simulator**: Simulates what happens when a user attempts to open an unauthorized app (e.g., Instagram/TikTok) during lockdown, triggering the animated shield bounce-back.
-  - **Dynamic Island**: Displays real-time status notifications (`blockWho ready`, `lockdown active`, `Intercepted`).
+### 8. 🛡️ Android Core Permissions & Onboarding
+- **First-Run Permission Manager**: Prompts and guides the user to grant essential Android permissions:
+  - **Usage Access (`PACKAGE_USAGE_STATS`)**: Inspects foreground applications to instantly detect and intercept restricted apps (Instagram, TikTok, YouTube).
+  - **Display Over Other Apps (`SYSTEM_ALERT_WINDOW`)**: Renders the fullscreen OLED shield and floating HUD pill over unauthorized applications.
+  - **Focus Notifications (`POST_NOTIFICATIONS`)**: Displays persistent countdown timers and scheduled routine alerts.
+- **Native Android Bridge**: Full two-way communication between WebView and Kotlin Activity for checking live permission statuses and triggering tactile haptics.
+- **Profile & Preferences Modal**: Custom settings for haptic vibration, synthesizer audio effects, streak metrics, and permission checks.
 
 ---
 

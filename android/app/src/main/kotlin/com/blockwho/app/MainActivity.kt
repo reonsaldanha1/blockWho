@@ -2,14 +2,23 @@ package com.blockwho.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AppOpsManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.View
+import android.os.Process
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.provider.Settings
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -77,6 +86,9 @@ class MainActivity : Activity() {
                 }
             }
 
+            // Expose Android Native Bridge for permission checks and haptics
+            wv.addJavascriptInterface(WebAppInterface(this), "AndroidBridge")
+
             setContentView(wv)
             wv.loadUrl("file:///android_asset/index.html")
         } catch (e: Throwable) {
@@ -98,6 +110,8 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         webView?.onResume()
+        // Refresh permission badges whenever the user returns from system settings
+        webView?.evaluateJavascript("if (window.refreshPermissionBadges) window.refreshPermissionBadges();", null)
     }
 
     override fun onPause() {
@@ -109,5 +123,156 @@ class MainActivity : Activity() {
         webView?.destroy()
         webView = null
         super.onDestroy()
+    }
+
+    class WebAppInterface(private val activity: Activity) {
+
+        @JavascriptInterface
+        fun isAndroid(): Boolean = true
+
+        @JavascriptInterface
+        fun getAppVersion(): String = "1.0.0"
+
+        @JavascriptInterface
+        fun hasUsageStatsPermission(): Boolean {
+            return try {
+                val appOps = activity.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    appOps.unsafeCheckOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(),
+                        activity.packageName
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    appOps.checkOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(),
+                        activity.packageName
+                    )
+                }
+                mode == AppOpsManager.MODE_ALLOWED
+            } catch (e: Throwable) {
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun requestUsageStatsPermission() {
+            try {
+                val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Throwable) {
+                try {
+                    activity.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    })
+                } catch (err: Throwable) {
+                    err.printStackTrace()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun hasOverlayPermission(): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    Settings.canDrawOverlays(activity)
+                } catch (e: Throwable) {
+                    false
+                }
+            } else {
+                true
+            }
+        }
+
+        @JavascriptInterface
+        fun requestOverlayPermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${activity.packageName}")
+                    ).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(intent)
+                } catch (e: Throwable) {
+                    try {
+                        activity.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        })
+                    } catch (err: Throwable) {
+                        err.printStackTrace()
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun hasNotificationPermission(): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else {
+                try {
+                    val nm = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                    nm?.areNotificationsEnabled() ?: true
+                } catch (e: Throwable) {
+                    true
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                try {
+                    activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+                } catch (e: Throwable) {
+                    openNotificationSettings()
+                }
+            } else {
+                openNotificationSettings()
+            }
+        }
+
+        @JavascriptInterface
+        fun openNotificationSettings() {
+            try {
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (e: Throwable) {
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${activity.packageName}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(intent)
+                } catch (err: Throwable) {
+                    err.printStackTrace()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun vibrate(milliseconds: Long) {
+            try {
+                val vibrator = activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(milliseconds.coerceAtLeast(10), VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(milliseconds.coerceAtLeast(10))
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
     }
 }
