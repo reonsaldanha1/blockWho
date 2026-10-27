@@ -603,6 +603,27 @@
             </div>
           </div>
 
+          <!-- Floor Construction Progress (Minimum 3 Hours to Build a Floor) -->
+          <div class="p-3.5 rounded-DEFAULT bg-surface-container-low border border-white/5 space-y-2" id="tower-construction-card">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 font-label-sm text-primary font-bold">
+                <span class="material-symbols-outlined text-[16px]">construction</span>
+                <span id="tower-progress-floor-title">Floor 1 Construction</span>
+              </div>
+              <span class="font-mono text-[11px] text-primary" id="tower-progress-hours">0.0 / 3.0h</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
+              <div class="h-full bg-primary transition-all duration-500 rounded-full" id="tower-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="text-[10px] text-outline flex items-center justify-between">
+              <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px] text-primary/80">info</span>
+                <span>Minimum 3 hours to build a floor</span>
+              </span>
+              <span id="tower-progress-remaining" class="font-mono">3.0h remaining</span>
+            </div>
+          </div>
+
           <!-- Isometric Tower Display -->
           <div class="relative w-full rounded-lg bg-surface-container-lowest p-6 flex flex-col items-center overflow-hidden border border-white/5 min-h-[300px]">
             <div class="w-full flex justify-between items-center text-xs font-label-sm text-outline mb-3">
@@ -621,7 +642,7 @@
           <div class="p-3.5 rounded-DEFAULT bg-surface-container-low border border-white/5" id="floor-inspector-card">
             <span class="font-label-sm text-[10px] text-primary uppercase font-bold tracking-wider">Selected Floor Inspection</span>
             <h4 class="font-headline-md text-sm text-primary font-bold mt-1" id="inspect-floor-name">No Floors Built Yet</h4>
-            <p class="font-body-sm text-xs text-outline mt-0.5" id="inspect-floor-details">Complete your first focus session to start building your tower.</p>
+            <p class="font-body-sm text-xs text-outline mt-0.5" id="inspect-floor-details">Complete at least 3 hours of focus to start constructing your tower (Minimum 3 hours per floor).</p>
           </div>
         </section>
 
@@ -915,7 +936,7 @@
           </div>
           <div>
             <h3 class="font-headline-md text-base text-primary font-bold">Profile & Settings</h3>
-            <p class="text-[11px] text-outline">blockWho v2.1.0 · Pure OLED</p>
+            <p class="text-[11px] text-outline">blockWho v2.2.0 · Pure OLED</p>
           </div>
         </div>
         <button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-outline hover:text-white" id="btn-close-profile-modal">

@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -20,11 +21,12 @@ import androidx.core.app.ServiceCompat
  * BlockerForegroundService
  *
  * A foreground service that keeps the session alive even when the user
- * minimizes the app. It:
- * 1. Shows a persistent status-bar notification ("Session in progress").
- * 2. Holds a WakeLock-equivalent priority so Android doesn't kill the process.
- * 3. Includes an active background watchdog thread that verifies the foreground app
- *    against the Suitcase allowed packages as a dual-layer backup to AccessibilityService.
+ * closes or minimizes the app during lockdown mode. It:
+ * 1. Shows a persistent status-bar countdown notification.
+ * 2. Holds a partial WakeLock to keep the session alive in the background.
+ * 3. Survives task removal (closing from recent apps) via onTaskRemoved and AlarmManager.
+ * 4. Runs a background watchdog thread that redirects back to blockWho if the
+ *    home launcher or unauthorized apps are opened.
  */
 class BlockerForegroundService : Service() {
 
@@ -68,6 +70,8 @@ class BlockerForegroundService : Service() {
 
     private var watcherThread: Thread? = null
     @Volatile private var isWatching = false
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var lastNotifUpdateMs = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -81,8 +85,11 @@ class BlockerForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
+                val remainingMs = endMs - System.currentTimeMillis()
+                acquireWakeLock(remainingMs)
+
                 try {
-                    val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
                     val notification = buildSessionNotification(endMs)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         ServiceCompat.startForeground(
@@ -99,7 +106,6 @@ class BlockerForegroundService : Service() {
                 } catch (e: Throwable) {
                     Log.e(TAG, "Failed to start foreground service", e)
                     try {
-                        val endMs = intent.getLongExtra(EXTRA_SESSION_END_MS, 0L)
                         val notification = buildSessionNotification(endMs)
                         startForeground(NOTIFICATION_ID, notification)
                         startWatcher()
@@ -113,6 +119,7 @@ class BlockerForegroundService : Service() {
                     isWatching = false
                     watcherThread?.interrupt()
                     watcherThread = null
+                    releaseWakeLock()
                     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     isRunning = false
@@ -125,10 +132,86 @@ class BlockerForegroundService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.i(TAG, "onTaskRemoved: app closed in lockdown mode, maintaining background service")
+        if (SharedPrefsManager.isSessionActive(this)) {
+            val endMs = SharedPrefsManager.getSessionEndMs(this)
+            if (endMs > System.currentTimeMillis()) {
+                val restartIntent = Intent(applicationContext, BlockerForegroundService::class.java).apply {
+                    action = ACTION_START
+                    putExtra(EXTRA_SESSION_END_MS, endMs)
+                    setPackage(packageName)
+                }
+                val pendingIntent = PendingIntent.getService(
+                    applicationContext,
+                    1006,
+                    restartIntent,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+                    } else {
+                        PendingIntent.FLAG_ONE_SHOT
+                    }
+                )
+                val alarmMgr = getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager
+                try {
+                    alarmMgr?.setExactAndAllowWhileIdle(
+                        android.app.AlarmManager.RTC_WAKEUP,
+                        System.currentTimeMillis() + 1000,
+                        pendingIntent
+                    )
+                } catch (e: Throwable) {
+                    try {
+                        alarmMgr?.set(
+                            android.app.AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + 1000,
+                            pendingIntent
+                        )
+                    } catch (ignored: Throwable) {}
+                }
+            }
+        }
+    }
+
+    private fun acquireWakeLock(durationMs: Long) {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (wakeLock == null) {
+                wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "blockWho:LockdownWakeLock")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            wakeLock?.let {
+                if (!it.isHeld) {
+                    val timeout = if (durationMs > 0) durationMs + 60_000L else 12 * 3600 * 1000L
+                    it.acquire(timeout)
+                    Log.i(TAG, "Acquired WakeLock for $timeout ms")
+                }
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to acquire WakeLock", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                    Log.i(TAG, "Released WakeLock")
+                }
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to release WakeLock", e)
+        }
+    }
+
     /**
      * Dual-layer backup watchdog:
-     * Periodically queries UsageStatsManager to catch and close unauthorized apps
-     * if the Accessibility Service is temporarily inactive.
+     * 1. Monitors foreground packages via UsageStatsManager.
+     * 2. If the Home Launcher is open during lockdown, redirects back to blockWho.
+     * 3. If an unauthorized app is open, closes/redirects.
+     * 4. Updates the notification status countdown periodically.
      */
     private fun startWatcher() {
         if (isWatching) return
@@ -137,41 +220,44 @@ class BlockerForegroundService : Service() {
             Log.d(TAG, "Watchdog loop started")
             while (isWatching && SharedPrefsManager.isSessionActive(this)) {
                 try {
-                    Thread.sleep(600)
+                    Thread.sleep(500)
                     if (!isWatching || !SharedPrefsManager.isSessionActive(this)) break
 
                     val endMs = SharedPrefsManager.getSessionEndMs(this)
-                    if (endMs > 0 && System.currentTimeMillis() >= endMs) {
+                    val now = System.currentTimeMillis()
+                    if (endMs > 0 && now >= endMs) {
                         SharedPrefsManager.clearSession(this)
                         stopSelf()
                         break
                     }
 
-                    // Only run watchdog fallback if accessibility service is not active
-                    if (!BlockerAccessibilityService.isRunning) {
-                        val topPackage = getForegroundPackage()
-                        if (topPackage != null) {
-                            val ownPackage = SharedPrefsManager.getOwnPackage(this)
-                            val allowed = SharedPrefsManager.getAllowedPackages(this)
-                            if (topPackage != ownPackage &&
-                                topPackage != "android" &&
-                                topPackage != "com.android.systemui" &&
-                                topPackage != "com.google.android.dialer" &&
-                                topPackage != "com.android.dialer" &&
-                                topPackage != "com.android.phone" &&
-                                !allowed.contains(topPackage)) {
-                                Log.w(TAG, "Watchdog found non-allowed foreground pkg: $topPackage")
-                                val bringIntent = Intent(applicationContext, MainActivity::class.java).apply {
-                                    addFlags(
-                                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                    )
-                                    putExtra("FROM_BLOCKER", true)
-                                    putExtra("BLOCKED_PKG", topPackage)
-                                }
-                                applicationContext.startActivity(bringIntent)
-                            }
+                    // Periodically refresh notification timer (every 10 seconds)
+                    if (now - lastNotifUpdateMs > 10_000) {
+                        lastNotifUpdateMs = now
+                        updateNotification(endMs)
+                    }
+
+                    val topPackage = getForegroundPackage()
+                    if (topPackage != null) {
+                        val ownPackage = SharedPrefsManager.getOwnPackage(this)
+                        val allowed = SharedPrefsManager.getAllowedPackages(this)
+
+                        // 1. Home Launcher opened during lockdown -> redirect back to blockWho!
+                        if (BlockerLauncherHelper.isLauncherPackage(this, topPackage)) {
+                            Log.w(TAG, "Watchdog detected launcher in foreground: $topPackage - redirecting to app")
+                            BlockerLauncherHelper.bringBlockWhoToFront(this)
+                        }
+                        // 2. Unauthorized app opened
+                        else if (!BlockerAccessibilityService.isRunning &&
+                            topPackage != ownPackage &&
+                            topPackage != "android" &&
+                            topPackage != "com.android.systemui" &&
+                            topPackage != "com.google.android.dialer" &&
+                            topPackage != "com.android.dialer" &&
+                            topPackage != "com.android.phone" &&
+                            !allowed.contains(topPackage)) {
+                            Log.w(TAG, "Watchdog found non-allowed foreground pkg: $topPackage")
+                            BlockerLauncherHelper.bringBlockWhoToFront(this, topPackage)
                         }
                     }
                 } catch (e: InterruptedException) {
@@ -207,9 +293,25 @@ class BlockerForegroundService : Service() {
         }
     }
 
+    private fun updateNotification(sessionEndMs: Long) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val notification = buildSessionNotification(sessionEndMs)
+            nm?.notify(NOTIFICATION_ID, notification)
+        } catch (e: Throwable) {
+            // ignore
+        }
+    }
+
     private fun buildSessionNotification(sessionEndMs: Long): Notification {
         val tapIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         }
         val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -219,6 +321,14 @@ class BlockerForegroundService : Service() {
 
         val remainingMs = sessionEndMs - System.currentTimeMillis()
         val remainingMins = if (remainingMs > 0) (remainingMs / 60_000).toInt() else 0
+        val remainingHours = remainingMins / 60
+        val displayMins = remainingMins % 60
+
+        val timeText = when {
+            remainingHours > 0 -> "${remainingHours}h ${displayMins}m remaining · Lockdown active"
+            remainingMins > 0 -> "$remainingMins min remaining · Lockdown active"
+            else -> "Lockdown session active · Stay focused"
+        }
 
         val iconRes = try {
             val resId = resources.getIdentifier("ic_launcher", "mipmap", packageName)
@@ -228,11 +338,8 @@ class BlockerForegroundService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("\uD83D\uDD12 blockWho Session Active")
-            .setContentText(
-                if (remainingMins > 0) "$remainingMins min remaining · Stay focused"
-                else "Session in progress · Stay focused"
-            )
+            .setContentTitle("\uD83D\uDD12 blockWho Lockdown Mode")
+            .setContentText(timeText)
             .setSmallIcon(iconRes)
             .setOngoing(true)
             .setShowWhen(false)
@@ -262,6 +369,7 @@ class BlockerForegroundService : Service() {
         super.onDestroy()
         isWatching = false
         watcherThread?.interrupt()
+        releaseWakeLock()
         isRunning = false
         Log.i(TAG, "BlockerForegroundService destroyed")
     }

@@ -3,8 +3,6 @@ package com.blockwho.app
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -22,10 +20,12 @@ import android.widget.Toast
  *
  * The core enforcement engine of blockWho:
  * 1. Monitors foreground window transitions (TYPE_WINDOW_STATE_CHANGED / TYPE_WINDOWS_CHANGED).
- * 2. When lockmode is active, any app opened that is NOT in the Suitcase whitelist
+ * 2. When lockdown mode is active, any app opened that is NOT in the Suitcase whitelist
  *    is IMMEDIATELY closed via GLOBAL_ACTION_HOME, and blockWho is brought back
  *    to the foreground with haptic feedback and a warning toast.
- * 3. Essential system services (System UI, active keyboards, emergency dialer,
+ * 3. When the home launcher is opened during lockdown mode, redirects immediately
+ *    back to blockWho.
+ * 4. Essential system services (System UI, active keyboards, emergency dialer,
  *    and system permission dialogs) are permitted so the device remains safe.
  */
 class BlockerAccessibilityService : AccessibilityService() {
@@ -33,6 +33,7 @@ class BlockerAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "BlockerService"
         @Volatile var isRunning = false
+        private var lastLauncherToastMs = 0L
     }
 
     override fun onServiceConnected() {
@@ -81,11 +82,24 @@ class BlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        // 4. Default Home Launcher
-        if (isLauncherPackage(foregroundPackage)) {
-            // In strict mode, bounce back to blockWho so the user stays on the lockout screen
-            if (SharedPrefsManager.isStrictMode(this)) {
-                bringBlockWhoToFront()
+        // 4. Default Home Launcher — redirect back to blockWho during lockdown mode!
+        if (BlockerLauncherHelper.isLauncherPackage(this, foregroundPackage)) {
+            Log.w(TAG, "Launcher opened during lockdown mode: $foregroundPackage - redirecting back to blockWho")
+            BlockerLauncherHelper.bringBlockWhoToFront(this)
+
+            // Feedback toast throttled to once every 2.5s
+            val now = System.currentTimeMillis()
+            if (now - lastLauncherToastMs > 2500) {
+                lastLauncherToastMs = now
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        Toast.makeText(
+                            applicationContext,
+                            "\uD83D\uDD12 Lockdown mode active · Returning to blockWho",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } catch (ignored: Throwable) {}
+                }
             }
             return
         }
@@ -100,21 +114,11 @@ class BlockerAccessibilityService : AccessibilityService() {
      */
     private fun blockAndCloseApp(blockedPackage: String) {
         try {
-            // 1. Immediately press HOME to dismiss / close the unauthorized foreground app
+            // 1. Dismiss unauthorized foreground app
             performGlobalAction(GLOBAL_ACTION_HOME)
 
             // 2. Bring blockWho back to foreground immediately
-            val intent = Intent(applicationContext, MainActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-                )
-                putExtra("FROM_BLOCKER", true)
-                putExtra("BLOCKED_PKG", blockedPackage)
-            }
-            applicationContext.startActivity(intent)
+            BlockerLauncherHelper.bringBlockWhoToFront(this, blockedPackage)
 
             // 3. Haptic alert
             try {
@@ -149,22 +153,6 @@ class BlockerAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun bringBlockWhoToFront() {
-        try {
-            val intent = Intent(applicationContext, MainActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-                putExtra("FROM_BLOCKER", true)
-            }
-            applicationContext.startActivity(intent)
-        } catch (e: Throwable) {
-            Log.e(TAG, "Failed to bring blockWho to front", e)
-        }
-    }
-
     /**
      * Essential Android system components that must NEVER be blocked
      * to prevent bricking or preventing emergency communication.
@@ -195,26 +183,6 @@ class BlockerAccessibilityService : AccessibilityService() {
             pkg == "com.android.packageinstaller") return true
 
         return false
-    }
-
-    private fun isLauncherPackage(pkg: String): Boolean {
-        return try {
-            val pm = packageManager
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-            val resolveInfos = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            for (info in resolveInfos) {
-                if (info.activityInfo?.packageName == pkg) return true
-            }
-            pkg == "com.google.android.apps.nexuslauncher" ||
-            pkg == "com.android.launcher3" ||
-            pkg == "com.sec.android.app.launcher" ||
-            pkg == "com.miui.home" ||
-            pkg == "com.huawei.android.launcher" ||
-            pkg == "com.oppo.launcher" ||
-            pkg == "com.oneplus.launcher"
-        } catch (e: Throwable) {
-            false
-        }
     }
 
     private fun isImePackage(pkg: String): Boolean {

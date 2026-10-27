@@ -104,6 +104,11 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (SharedPrefsManager.isSessionActive(this)) {
+            // Keep app alive in background during lockdown mode, do not destroy activity
+            moveTaskToBack(true)
+            return
+        }
         val wv = webView
         if (wv != null && wv.canGoBack()) {
             wv.goBack()
@@ -116,10 +121,11 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         webView?.onResume()
-        // Refresh permission badges whenever the user returns from system settings
+        // Refresh permission badges and sync session progress
         webView?.evaluateJavascript(
             "if (window.refreshPermissionBadges) window.refreshPermissionBadges(); " +
-            "if (window.refreshAccessibilityStatus) window.refreshAccessibilityStatus();",
+            "if (window.refreshAccessibilityStatus) window.refreshAccessibilityStatus(); " +
+            "if (window.syncSessionFromNative) window.syncSessionFromNative();",
             null
         )
     }
@@ -154,7 +160,7 @@ class MainActivity : Activity() {
         fun isAndroid(): Boolean = true
 
         @JavascriptInterface
-        fun getAppVersion(): String = "2.1.0"
+        fun getAppVersion(): String = "2.2.0"
 
         // ---- Permissions ----
 

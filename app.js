@@ -21,6 +21,7 @@
     isLocked: false,
     lockSecondsRemaining: 0,
     lockTotalSeconds: 0,
+    lockEndTime: null,
     activeTab: 'focus',
     hapticsEnabled: true,
     audioEnabled: true,
@@ -587,6 +588,7 @@
     state.isLocked = true;
     state.lockTotalSeconds = Math.max(60, (state.currentMinutes || 45) * 60);
     state.lockSecondsRemaining = state.lockTotalSeconds;
+    state.lockEndTime = Date.now() + (state.lockSecondsRemaining * 1000);
     saveState();
 
     // === NATIVE BLOCKING LAYER (BlockIt-style) ===
@@ -653,7 +655,8 @@
     const towerFloorBadge = document.getElementById('lock-tower-floor-text');
     if (towerFloorBadge) {
       const floorsNum = state.tower.floors ? state.tower.floors.length : 0;
-      towerFloorBadge.innerText = floorsNum === 0 ? 'Floor 1 (in progress)' : `Floor ${floorsNum} Tower (+1 in prog)`;
+      const currentHours = Math.round(((state.tower.totalFocusHours || 0) % 3.0) * 10) / 10;
+      towerFloorBadge.innerText = `Floor ${floorsNum + 1} (${currentHours.toFixed(1)}/3h min)`;
     }
 
     renderLockSuitcaseDock();
@@ -663,6 +666,7 @@
   function exitLockoutToFocus() {
     state.isLocked = false;
     state.lockSecondsRemaining = 0;
+    state.lockEndTime = null;
     saveState();
 
     if (countdownInterval) {
@@ -694,20 +698,39 @@
     navigateToTab('focus');
   }
 
+  const MIN_HOURS_PER_FLOOR = 3.0;
+
   function startCountdownTimer() {
     if (countdownInterval) clearInterval(countdownInterval);
 
-    countdownInterval = setInterval(() => {
-      if (state.lockSecondsRemaining <= 1) {
-        clearInterval(countdownInterval);
+    // Ensure lockEndTime exists for wall-clock tracking across background state
+    if (!state.lockEndTime || state.lockEndTime <= Date.now()) {
+      state.lockEndTime = Date.now() + (state.lockSecondsRemaining * 1000);
+      saveState();
+    }
+
+    function tick() {
+      if (!state.isLocked) {
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = null;
+        return;
+      }
+
+      // Compute remaining seconds from wall-clock target time so background periods are counted
+      const remaining = Math.max(0, Math.round((state.lockEndTime - Date.now()) / 1000));
+      state.lockSecondsRemaining = remaining;
+
+      if (remaining <= 0) {
+        if (countdownInterval) clearInterval(countdownInterval);
         countdownInterval = null;
         completeLockoutSession();
       } else {
-        state.lockSecondsRemaining--;
-        saveState();
         updateLockoutDisplay();
       }
-    }, 1000);
+    }
+
+    tick();
+    countdownInterval = setInterval(tick, 1000);
   }
 
   function updateLockoutDisplay() {
@@ -723,7 +746,7 @@
     if (mainTimer) mainTimer.innerText = timerStr;
     if (pillCountdown) pillCountdown.innerText = `${mins}m ${secs}s Left`;
 
-    const targetDate = new Date(Date.now() + totalSecs * 1000);
+    const targetDate = state.lockEndTime ? new Date(state.lockEndTime) : new Date(Date.now() + totalSecs * 1000);
     const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const lockRemark = document.getElementById('lock-ends-remark');
     if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr} · Stay disciplined`;
@@ -733,27 +756,45 @@
     sound.playChime('success');
     hapticFeedback(60);
 
-    // Build new tower floor
-    const newFloorNum = state.tower.floors.length + 1;
     const sessionHours = state.lockTotalSeconds / 3600;
+    state.tower.totalFocusHours = Math.round(((state.tower.totalFocusHours || 0) + sessionHours) * 10) / 10;
+    state.tower.streakDays = (state.tower.streakDays || 0) + 1;
 
-    state.tower.floorsCount = newFloorNum;
-    state.tower.streakDays += 1;
-    state.tower.totalFocusHours = Math.round((state.tower.totalFocusHours + sessionHours) * 10) / 10;
-
+    // Minimum 3 hours required to build a floor
+    const earnedFloorsCount = Math.floor(state.tower.totalFocusHours / MIN_HOURS_PER_FLOOR);
+    const currentFloors = state.tower.floors || [];
+    const currentFloorsCount = currentFloors.length;
+    const progressHoursInCurrentFloor = Math.round((state.tower.totalFocusHours % MIN_HOURS_PER_FLOOR) * 10) / 10;
     const todayStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-    state.tower.floors.push({
-      floor: newFloorNum,
-      mode: state.selectedMode === 'study' ? 'Study Sprint' : state.selectedMode === 'sleep' ? 'Sleep Sanctuary' : 'Deep Work',
-      duration: Math.round(state.lockTotalSeconds / 60),
-      date: todayStr,
-      parachutes: 0
-    });
 
-    saveState();
-    renderTowerTab();
-    exitLockoutToFocus();
-    alert('Session complete! Tower floor added.');
+    if (earnedFloorsCount > currentFloorsCount) {
+      const floorsToAdd = earnedFloorsCount - currentFloorsCount;
+      for (let i = 0; i < floorsToAdd; i++) {
+        const newFloorNum = currentFloorsCount + i + 1;
+        currentFloors.push({
+          floor: newFloorNum,
+          mode: state.selectedMode === 'study' ? 'Study Sprint' : state.selectedMode === 'sleep' ? 'Sleep Sanctuary' : 'Deep Work',
+          duration: Math.round(MIN_HOURS_PER_FLOOR * 60),
+          date: todayStr,
+          parachutes: 0
+        });
+      }
+      state.tower.floors = currentFloors;
+      state.tower.floorsCount = currentFloors.length;
+
+      saveState();
+      renderTowerTab();
+      exitLockoutToFocus();
+      alert(`🎉 Milestone achieved! Minimum 3 hours focus completed — Tower Floor ${state.tower.floorsCount} successfully constructed!`);
+    } else {
+      state.tower.floorsCount = currentFloorsCount;
+      const remainingToBuild = Math.max(0, Math.round((MIN_HOURS_PER_FLOOR - progressHoursInCurrentFloor) * 10) / 10);
+
+      saveState();
+      renderTowerTab();
+      exitLockoutToFocus();
+      alert(`Session complete! +${sessionHours.toFixed(1)}h added. Progress towards Floor ${currentFloorsCount + 1}: ${progressHoursInCurrentFloor.toFixed(1)}h / 3.0h (${remainingToBuild.toFixed(1)}h remaining).`);
+    }
   }
 
   // ==========================================
@@ -775,7 +816,14 @@
     extendTimer = setTimeout(() => {
       state.lockSecondsRemaining += 15 * 60;
       state.lockTotalSeconds += 15 * 60;
+      state.lockEndTime = Date.now() + (state.lockSecondsRemaining * 1000);
       saveState();
+      if (window.AndroidBridge && typeof window.AndroidBridge.startBlockingSession === 'function') {
+        try {
+          const allowedPkgs = state.suitcaseApps.filter(a => a.packed && a.pkg).map(a => a.pkg);
+          window.AndroidBridge.startBlockingSession(state.lockSecondsRemaining, JSON.stringify(allowedPkgs), state.parachutesCount);
+        } catch (e) {}
+      }
 
       if (addTimeProgress) {
         addTimeProgress.style.transition = 'none';
@@ -1902,7 +1950,8 @@
     const tierLabel = document.getElementById('tower-tier-label');
     const tierDesc = document.getElementById('tower-tier-desc');
 
-    const totalFloors = state.tower.floorsCount || (state.tower.floors ? state.tower.floors.length : 0);
+    const totalFloors = state.tower.floors ? state.tower.floors.length : 0;
+    state.tower.floorsCount = totalFloors;
     if (streakEl) streakEl.innerText = state.tower.streakDays || 0;
     if (floorsEl) floorsEl.innerText = totalFloors;
     if (hoursEl) hoursEl.innerText = `${state.tower.totalFocusHours || 0}h`;
@@ -1924,6 +1973,23 @@
       }
     }
 
+    // Floor Construction Progress Card (Minimum 3 Hours to Build a Floor)
+    const totalHours = state.tower.totalFocusHours || 0;
+    const currentProgressHours = Math.round((totalHours % 3.0) * 10) / 10;
+    const nextFloorNum = totalFloors + 1;
+    const progressPercent = Math.min(100, Math.round((currentProgressHours / 3.0) * 100));
+    const hoursRemaining = Math.max(0, Math.round((3.0 - currentProgressHours) * 10) / 10);
+
+    const titleEl = document.getElementById('tower-progress-floor-title');
+    const hoursProgressEl = document.getElementById('tower-progress-hours');
+    const barEl = document.getElementById('tower-progress-bar');
+    const remainingEl = document.getElementById('tower-progress-remaining');
+
+    if (titleEl) titleEl.innerText = `Floor ${nextFloorNum} Construction`;
+    if (hoursProgressEl) hoursProgressEl.innerText = `${currentProgressHours.toFixed(1)} / 3.0h (Min 3h)`;
+    if (barEl) barEl.style.width = `${progressPercent}%`;
+    if (remainingEl) remainingEl.innerText = `${hoursRemaining.toFixed(1)}h remaining`;
+
     // Also update Profile modal stats
     const profStreak = document.getElementById('profile-streak-val');
     const profHours = document.getElementById('profile-hours-val');
@@ -1935,7 +2001,7 @@
       const nameEl = document.getElementById('inspect-floor-name');
       const detailsEl = document.getElementById('inspect-floor-details');
       if (nameEl) nameEl.innerText = 'No Floors Built Yet';
-      if (detailsEl) detailsEl.innerText = 'Complete your first focus session to start constructing your tower.';
+      if (detailsEl) detailsEl.innerText = 'Complete at least 3 hours of focus to start constructing your tower (Minimum 3 hours per floor).';
 
       const emptyCard = document.createElement('div');
       emptyCard.className = 'w-full py-8 px-4 rounded-xl border border-dashed border-white/10 bg-surface-container-low/50 flex flex-col items-center justify-center text-center space-y-2';
@@ -1945,7 +2011,7 @@
         </div>
         <div>
           <div class="font-label-md text-xs font-semibold text-primary">Tower Awaiting Construction</div>
-          <div class="font-body-sm text-[11px] text-outline mt-0.5">Complete a focus sprint to build Floor 1.</div>
+          <div class="font-body-sm text-[11px] text-outline mt-0.5">Complete at least 3 hours of focus to construct Floor 1 (Minimum 3 hours per floor).</div>
         </div>
       `;
       stack.appendChild(emptyCard);
@@ -1983,7 +2049,8 @@
     const detailsEl = document.getElementById('inspect-floor-details');
     if (!f) return;
     if (nameEl) nameEl.innerText = `Floor ${f.floor}: ${f.mode}`;
-    if (detailsEl) detailsEl.innerText = `Constructed ${f.date} · ${f.duration} Minutes · ${f.parachutes} Parachutes Used`;
+    const durStr = f.duration >= 60 ? `${(f.duration / 60).toFixed(1)} Hours` : `${f.duration} Minutes`;
+    if (detailsEl) detailsEl.innerText = `Constructed ${f.date} · ${durStr} (Min 3h requirement met) · ${f.parachutes} Parachutes Used`;
   }
 
   // ==========================================
@@ -2217,31 +2284,72 @@
       setTimeout(loadInstalledAppsCatalog, 800);
       syncNativeAllowedPackages();
     }
-    // On Android: also check if we need to restore a session that was running
-    // when the app was killed and restarted
-    if (window.AndroidBridge && typeof window.AndroidBridge.isBlockingSessionActive === 'function') {
-      try {
-        if (window.AndroidBridge.isBlockingSessionActive() && !state.isLocked) {
-          const remaining = window.AndroidBridge.getSessionRemainingSeconds();
-          if (remaining > 30) {
-            state.isLocked = true;
-            state.lockSecondsRemaining = remaining;
-            state.lockTotalSeconds = remaining;
-            saveState();
-            enterLockoutScreen();
-            startCountdownTimer();
-          } else {
-            // Session expired during downtime — clean it up
-            if (typeof window.AndroidBridge.stopBlockingSession === 'function') {
-              window.AndroidBridge.stopBlockingSession();
+    // On Android: check if we need to restore a session that was running
+    // when the app was closed or minimized
+    syncSessionFromBackground();
+  }
+
+  function syncSessionFromBackground() {
+    if (!state.isLocked) {
+      if (window.AndroidBridge && typeof window.AndroidBridge.isBlockingSessionActive === 'function') {
+        try {
+          if (window.AndroidBridge.isBlockingSessionActive()) {
+            const remaining = window.AndroidBridge.getSessionRemainingSeconds();
+            if (remaining > 0) {
+              state.isLocked = true;
+              state.lockSecondsRemaining = remaining;
+              state.lockTotalSeconds = Math.max(state.lockTotalSeconds || 0, remaining);
+              state.lockEndTime = Date.now() + (remaining * 1000);
+              saveState();
+              enterLockoutScreen();
+              startCountdownTimer();
+              return;
             }
           }
+        } catch (e) {
+          console.warn('Session restore check failed:', e);
         }
-      } catch (e) {
-        console.warn('Session restore check failed:', e);
       }
+      return;
+    }
+
+    // Lockdown active — re-sync time when returning to foreground
+    if (window.AndroidBridge && typeof window.AndroidBridge.getSessionRemainingSeconds === 'function') {
+      try {
+        if (window.AndroidBridge.isBlockingSessionActive()) {
+          const remaining = window.AndroidBridge.getSessionRemainingSeconds();
+          if (remaining > 0) {
+            state.lockSecondsRemaining = remaining;
+            state.lockEndTime = Date.now() + (remaining * 1000);
+            updateLockoutDisplay();
+            saveState();
+          } else {
+            completeLockoutSession();
+            return;
+          }
+        } else {
+          completeLockoutSession();
+          return;
+        }
+      } catch (e) {}
+    } else if (state.lockEndTime) {
+      const remaining = Math.max(0, Math.round((state.lockEndTime - Date.now()) / 1000));
+      state.lockSecondsRemaining = remaining;
+      if (remaining <= 0) {
+        completeLockoutSession();
+        return;
+      }
+      updateLockoutDisplay();
+      saveState();
     }
   }
+
+  window.syncSessionFromNative = syncSessionFromBackground;
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncSessionFromBackground();
+  });
+  window.addEventListener('focus', syncSessionFromBackground);
+  window.addEventListener('pageshow', syncSessionFromBackground);
 
   window.refreshPermissionBadges = function() {
     const isAndroid = !!window.AndroidBridge;
