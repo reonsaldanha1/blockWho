@@ -1249,9 +1249,7 @@
       ? `<span class="font-mono text-[9px] text-outline/60 truncate max-w-[150px] block">${app.pkg}</span>`
       : `<span class="font-body-sm text-xs text-outline truncate block max-w-[170px]">${app.desc || ''}</span>`;
 
-    const iconHtml = isCustom
-      ? `<span class="material-symbols-outlined text-[20px]">android</span>`
-      : `<span class="material-symbols-outlined text-[20px]">${app.icon || 'apps'}</span>`;
+    const iconHtml = getAppIconHtml(app, 'w-10 h-10', 'text-[20px]');
 
     const deleteBtnHtml = isCustom
       ? `<button class="btn-remove-custom-app w-8 h-8 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center active:scale-95 transition-all cursor-pointer" title="Remove ${app.name} from Suitcase" data-id="${app.id}">
@@ -1261,7 +1259,7 @@
 
     card.innerHTML = `
       <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer app-info-area">
-        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+        <div class="flex-shrink-0">
           ${iconHtml}
         </div>
         <div class="min-w-0 flex-1">
@@ -1403,32 +1401,175 @@
     }
   };
 
-  function renderLockSuitcaseDock() {
-    const dockContainer = document.getElementById('dock-allowed-apps');
-    if (!dockContainer) return;
-    dockContainer.innerHTML = '';
+  const BUILTIN_APP_STYLES = {
+    calc: {
+      bg: 'linear-gradient(135deg, #FF9500 0%, #FF5E3A 100%)',
+      icon: 'calculate',
+      iconColor: '#FFFFFF'
+    },
+    scratchpad: {
+      bg: 'linear-gradient(135deg, #FFD600 0%, #FF9500 100%)',
+      icon: 'edit_note',
+      iconColor: '#121212'
+    },
+    maps: {
+      bg: 'linear-gradient(135deg, #34A853 0%, #4285F4 100%)',
+      icon: 'map',
+      iconColor: '#FFFFFF'
+    },
+    audio: {
+      bg: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)',
+      icon: 'headphones',
+      iconColor: '#FFFFFF'
+    },
+    phone: {
+      bg: 'linear-gradient(135deg, #00C853 0%, #64DD17 100%)',
+      icon: 'call',
+      iconColor: '#FFFFFF'
+    },
+    reader: {
+      bg: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+      icon: 'menu_book',
+      iconColor: '#FFFFFF'
+    },
+    camera: {
+      bg: 'linear-gradient(135deg, #FF2D55 0%, #FF3B30 100%)',
+      icon: 'photo_camera',
+      iconColor: '#FFFFFF'
+    }
+  };
 
-    const packed = state.suitcaseApps.filter(a => a.packed);
-    const badge = document.getElementById('lock-suitcase-allowed-badge');
-    if (badge) badge.innerText = `${packed.length} Allowed`;
+  const KNOWN_APP_STYLES = {
+    'com.whatsapp': { bg: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', icon: 'chat', iconColor: '#FFF' },
+    'com.google.android.youtube': { bg: 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)', icon: 'smart_display', iconColor: '#FFF' },
+    'com.spotify.music': { bg: 'linear-gradient(135deg, #1DB954 0%, #191414 100%)', icon: 'music_note', iconColor: '#FFF' },
+    'com.instagram.android': { bg: 'linear-gradient(135deg, #833AB4 0%, #FD1D1D 50%, #FCB045 100%)', icon: 'photo_camera', iconColor: '#FFF' },
+    'com.android.chrome': { bg: 'linear-gradient(135deg, #4285F4 0%, #34A853 50%, #FBBC05 100%)', icon: 'public', iconColor: '#FFF' },
+    'com.google.android.gm': { bg: 'linear-gradient(135deg, #EA4335 0%, #B31412 100%)', icon: 'mail', iconColor: '#FFF' },
+    'com.slack': { bg: 'linear-gradient(135deg, #4A154B 0%, #611f69 100%)', icon: 'tag', iconColor: '#FFF' },
+    'org.telegram.messenger': { bg: 'linear-gradient(135deg, #2AABEE 0%, #229ED9 100%)', icon: 'send', iconColor: '#FFF' },
+    'com.google.android.keep': { bg: 'linear-gradient(135deg, #FBBC04 0%, #F29900 100%)', icon: 'lightbulb', iconColor: '#121212' },
+    'com.amazon.kindle': { bg: 'linear-gradient(135deg, #00A8E1 0%, #007EB9 100%)', icon: 'auto_stories', iconColor: '#FFF' },
+    'notion.id': { bg: 'linear-gradient(135deg, #2A2A2E 0%, #191919 100%)', icon: 'description', iconColor: '#FFF' }
+  };
 
-    packed.forEach(app => {
-      const btn = document.createElement('button');
-      btn.className = 'flex flex-col items-center justify-center p-3 rounded-DEFAULT bg-surface-container-high hover:bg-surface-variant active:scale-95 transition-all cursor-pointer';
-      const displayName = ((app.name || app.pkg || 'App') + '').split(' ')[0];
-      btn.innerHTML = `
-        <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center mb-2">
-          <span class="material-symbols-outlined text-[20px] text-primary">${app.icon || 'apps'}</span>
-        </div>
-        <span class="font-label-sm text-label-sm text-primary font-medium tracking-wide truncate max-w-[80px]">${displayName}</span>
-        <div class="flex items-center gap-0.5 mt-1">
-          <span class="font-label-sm text-[9px] text-outline">LAUNCH</span>
-          <span class="material-symbols-outlined text-[10px] text-outline">arrow_outward</span>
+  function getAppIconHtml(app, sizeCls = 'w-11 h-11', iconSizeCls = 'text-[22px]') {
+    // If running on Android, fetch and cache the real application icon
+    if (!app.iconDataUrl && app.pkg && window.AndroidBridge && typeof window.AndroidBridge.getAppIconBase64 === 'function') {
+      try {
+        const base64Uri = window.AndroidBridge.getAppIconBase64(app.pkg);
+        if (base64Uri && base64Uri.startsWith('data:image')) {
+          app.iconDataUrl = base64Uri;
+        }
+      } catch (e) {}
+    }
+
+    if (app.iconDataUrl) {
+      return `
+        <div class="${sizeCls} rounded-2xl bg-surface-container-highest p-1 flex items-center justify-center shadow-md border border-white/10 overflow-hidden flex-shrink-0">
+          <img src="${app.iconDataUrl}" class="w-full h-full object-contain rounded-xl" alt="${app.name || 'App'}" />
         </div>
       `;
-      btn.addEventListener('click', () => openMiniApp(app.id));
-      dockContainer.appendChild(btn);
-    });
+    }
+
+    const style = BUILTIN_APP_STYLES[app.id] || (app.pkg ? KNOWN_APP_STYLES[app.pkg] : null);
+    if (style) {
+      return `
+        <div class="${sizeCls} rounded-2xl flex items-center justify-center shadow-md border border-white/10 flex-shrink-0" style="background: ${style.bg};">
+          <span class="material-symbols-outlined ${iconSizeCls}" style="color: ${style.iconColor};">${style.icon}</span>
+        </div>
+      `;
+    }
+
+    // Generic fallback with initials or material symbol
+    return `
+      <div class="${sizeCls} rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container-highest flex items-center justify-center text-primary shadow-md border border-white/10 flex-shrink-0">
+        <span class="material-symbols-outlined ${iconSizeCls}">${app.icon || 'apps'}</span>
+      </div>
+    `;
+  }
+
+  function renderLockSuitcaseDock() {
+    const dockContainer = document.getElementById('dock-allowed-apps');
+    const previewStrip = document.getElementById('lock-suitcase-icons-preview-strip');
+    const badge = document.getElementById('lock-suitcase-allowed-badge');
+
+    const packed = state.suitcaseApps.filter(a => a.packed);
+    if (badge) badge.innerText = `${packed.length} Allowed`;
+
+    // 1. Render Horizontal Icons Preview Strip in Lockdown Mode
+    if (previewStrip) {
+      previewStrip.innerHTML = '';
+      if (packed.length === 0) {
+        previewStrip.innerHTML = `
+          <div class="py-1 text-[11px] text-outline italic">Suitcase empty · All other apps hard locked</div>
+        `;
+      } else {
+        packed.forEach(app => {
+          const item = document.createElement('button');
+          item.className = 'flex flex-col items-center gap-1 group flex-shrink-0 cursor-pointer active:scale-95 transition-all text-center';
+          item.setAttribute('title', `Preview ${app.name}`);
+          const displayName = (app.name || app.pkg || 'App').split(' ')[0];
+          item.innerHTML = `
+            <div class="relative group-hover:scale-105 transition-transform">
+              ${getAppIconHtml(app, 'w-12 h-12', 'text-[22px]')}
+              <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black"></span>
+            </div>
+            <span class="font-label-sm text-[10px] text-primary/90 font-medium truncate max-w-[58px]">${displayName}</span>
+          `;
+          item.addEventListener('click', () => {
+            sound.playChime('click');
+            hapticFeedback(15);
+            openMiniApp(app.id);
+          });
+          previewStrip.appendChild(item);
+        });
+      }
+    }
+
+    // 2. Render Allowed App Cards Grid Below
+    if (dockContainer) {
+      dockContainer.innerHTML = '';
+      if (packed.length === 0) {
+        dockContainer.className = 'w-full';
+        dockContainer.innerHTML = `
+          <div class="w-full py-6 px-4 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center space-y-1">
+            <span class="material-symbols-outlined text-outline text-[24px]">luggage</span>
+            <div class="font-label-md text-xs font-semibold text-primary">Suitcase is Empty</div>
+            <div class="font-body-sm text-[11px] text-outline">Pack essential tools in the Suitcase tab before starting a lockdown sprint.</div>
+          </div>
+        `;
+        return;
+      }
+
+      dockContainer.className = 'grid grid-cols-3 gap-2.5';
+      packed.forEach(app => {
+        const card = document.createElement('div');
+        card.className = 'flex flex-col items-center justify-between p-3 rounded-xl bg-surface-container-high hover:bg-surface-variant transition-all border border-white/5 shadow-sm group';
+        const displayName = (app.name || app.pkg || 'App').split(' ')[0];
+        
+        card.innerHTML = `
+          <div class="w-full flex flex-col items-center cursor-pointer app-click-target">
+            <div class="group-hover:scale-105 transition-transform mb-2">
+              ${getAppIconHtml(app, 'w-11 h-11', 'text-[22px]')}
+            </div>
+            <span class="font-label-md text-xs text-primary font-semibold tracking-wide truncate max-w-[85px] text-center">${displayName}</span>
+          </div>
+          <button class="w-full mt-2 py-1 px-2 rounded-full bg-surface-container-highest hover:bg-primary hover:text-black text-outline hover:font-bold text-[10px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer btn-open-preview">
+            <span class="material-symbols-outlined text-[11px]">visibility</span>
+            <span>Preview</span>
+          </button>
+        `;
+
+        card.querySelector('.app-click-target').addEventListener('click', () => openMiniApp(app.id));
+        card.querySelector('.btn-open-preview').addEventListener('click', (e) => {
+          e.stopPropagation();
+          openMiniApp(app.id);
+        });
+
+        dockContainer.appendChild(card);
+      });
+    }
   }
 
 
@@ -1457,6 +1598,45 @@
     modal.classList.add('flex');
     sound.playChime('click');
     hapticFeedback(20);
+
+    const targetApp = state.suitcaseApps.find(a => a.id === appId || a.pkg === appId);
+    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+
+    if (targetApp && !builtinIds.has(targetApp.id)) {
+      // User Custom App Preview Card
+      if (titleEl) titleEl.innerText = targetApp.name || 'Application Preview';
+      if (iconEl) iconEl.innerText = 'preview';
+      contentEl.innerHTML = `
+        <div class="flex-1 flex flex-col items-center justify-center p-4 text-center space-y-4">
+          <div class="hover:scale-105 transition-transform">
+            ${getAppIconHtml(targetApp, 'w-20 h-20', 'text-[36px]')}
+          </div>
+          <div>
+            <h3 class="font-headline-md text-base text-primary font-bold">${targetApp.name}</h3>
+            <p class="font-mono text-xs text-outline mt-0.5">${targetApp.pkg || 'Whitelisted Tool'}</p>
+          </div>
+          <div class="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-label-sm font-semibold flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">verified</span>
+            <span>Packed in Suitcase · Distraction Free</span>
+          </div>
+          <button class="w-full max-w-[220px] py-2.5 rounded-full bg-primary text-black font-label-md text-xs font-bold hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer btn-launch-custom-app">
+            <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+            <span>Launch App</span>
+          </button>
+        </div>
+      `;
+      const launchBtn = contentEl.querySelector('.btn-launch-custom-app');
+      if (launchBtn) {
+        launchBtn.addEventListener('click', () => {
+          if (window.AndroidBridge && typeof window.AndroidBridge.launchApp === 'function' && targetApp.pkg) {
+            window.AndroidBridge.launchApp(targetApp.pkg);
+          } else {
+            alert(`Launching ${targetApp.name} (${targetApp.pkg || 'app'}). Permitted in lockdown.`);
+          }
+        });
+      }
+      return;
+    }
 
     if (appId === 'calc') {
       // Functional Calculator

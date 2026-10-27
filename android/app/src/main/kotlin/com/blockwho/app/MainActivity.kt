@@ -7,7 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -161,6 +166,31 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun getAppVersion(): String = "2.2.0"
+
+        @JavascriptInterface
+        fun getAppIconBase64(packageName: String): String {
+            return try {
+                val pm = activity.packageManager
+                val drawable = pm.getApplicationIcon(packageName)
+                val width = drawable.intrinsicWidth.coerceAtLeast(48).coerceAtMost(192)
+                val height = drawable.intrinsicHeight.coerceAtLeast(48).coerceAtMost(192)
+                val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null && !drawable.bitmap.isRecycled) {
+                    drawable.bitmap
+                } else {
+                    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    drawable.setBounds(0, 0, canvas.width, canvas.height)
+                    drawable.draw(canvas)
+                    bmp
+                }
+                val stream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 85, stream)
+                val bytes = stream.toByteArray()
+                "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            } catch (e: Throwable) {
+                ""
+            }
+        }
 
         // ---- Permissions ----
 
