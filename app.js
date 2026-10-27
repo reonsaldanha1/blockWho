@@ -741,10 +741,8 @@
 
     const timerStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     const mainTimer = document.getElementById('mainTimer');
-    const pillCountdown = document.getElementById('pill-countdown');
 
     if (mainTimer) mainTimer.innerText = timerStr;
-    if (pillCountdown) pillCountdown.innerText = `${mins}m ${secs}s Left`;
 
     const targetDate = state.lockEndTime ? new Date(state.lockEndTime) : new Date(Date.now() + totalSecs * 1000);
     const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -958,22 +956,6 @@
     if (lockBadge) lockBadge.innerText = `${state.parachutesCount} Left This Cycle`;
   }
 
-  // ==========================================
-  // 7. DRAGGABLE FLOATING HUD PILL
-  // ==========================================
-  const floatingPill = document.getElementById('floatingPill');
-  const snapClasses = ['-translate-x-20', 'translate-x-0', 'translate-x-20'];
-  let currentSnapIdx = 1;
-
-  if (floatingPill) {
-    floatingPill.addEventListener('click', () => {
-      floatingPill.classList.remove(...snapClasses);
-      currentSnapIdx = (currentSnapIdx + 1) % snapClasses.length;
-      floatingPill.classList.add(snapClasses[currentSnapIdx]);
-      sound.playChime('click');
-      hapticFeedback(15);
-    });
-  }
 
     // ==========================================
   // 8. SUITCASE MANAGEMENT & MINI-APPS
