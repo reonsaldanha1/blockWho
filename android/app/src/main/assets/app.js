@@ -27,15 +27,9 @@
     audioEnabled: true,
     strictMode: true,
     
-    // The Suitcase Whitelisted Items
+    // The Suitcase Whitelisted Items - Focus Soundscape is the single built-in tool
     suitcaseApps: [
-      { id: 'calc', name: 'Calculator Utility', icon: 'calculate', desc: 'Essential math calculations & conversions', packed: true },
-      { id: 'scratchpad', name: 'Quick Scratchpad', icon: 'edit_note', desc: 'Distraction-free quick thoughts & notes', packed: true },
-      { id: 'maps', name: 'Google Maps', icon: 'map', desc: 'Transit routes & offline GPS navigation', packed: true, pkg: 'com.google.android.apps.maps' },
-      { id: 'audio', name: 'Focus Soundscape', icon: 'headphones', desc: '40Hz Gamma binaural beats & cabin noise', packed: true },
-      { id: 'phone', name: 'Emergency Calls', icon: 'call', desc: 'Direct phone dialer & family contacts', packed: true, pkg: 'com.google.android.dialer' },
-      { id: 'reader', name: 'Document Reader', icon: 'menu_book', desc: 'Offline PDF references and reading', packed: false },
-      { id: 'camera', name: 'Document Scanner', icon: 'photo_camera', desc: 'Quick document capture without social media', packed: false }
+      { id: 'audio', name: 'Focus Soundscape', icon: 'music_note', desc: '40Hz Gamma binaural beats & ambient soundscapes', packed: true }
     ],
 
     // The Tower (Habit Skyscraper) - starts empty with zero floors
@@ -56,12 +50,37 @@
     scratchpadContent: "blockWho Focus Principles:\n1. Zero bypass allowed until timer reaches zero.\n2. Protect dopamine reservoirs.\n3. The Parachute is for true emergencies only.\n"
   };
 
+  const REMOVED_BUILTIN_IDS = new Set(['calc', 'scratchpad', 'maps', 'phone', 'reader', 'camera']);
+
   let state = loadState();
 
   function loadState() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return Object.assign({}, DEFAULT_STATE, JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const merged = Object.assign({}, DEFAULT_STATE, parsed);
+        if (Array.isArray(merged.suitcaseApps)) {
+          // Cleanly remove any legacy built-in tools, preserving Focus Soundscape and user custom apps
+          merged.suitcaseApps = merged.suitcaseApps.filter(a => !REMOVED_BUILTIN_IDS.has(a.id));
+
+          // Ensure Focus Soundscape is present with dark music icon
+          const audioApp = merged.suitcaseApps.find(a => a.id === 'audio');
+          if (audioApp) {
+            audioApp.icon = 'music_note';
+            audioApp.name = 'Focus Soundscape';
+          } else {
+            merged.suitcaseApps.unshift({
+              id: 'audio',
+              name: 'Focus Soundscape',
+              icon: 'music_note',
+              desc: '40Hz Gamma binaural beats & ambient soundscapes',
+              packed: true
+            });
+          }
+        }
+        return merged;
+      }
     } catch (e) {
       console.warn('Could not read saved state, resetting to default:', e);
     }
@@ -1822,7 +1841,7 @@
       : catalog;
 
     const existingPkgs = new Set(state.suitcaseApps.filter(a => a.pkg).map(a => a.pkg));
-    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+    const builtinIds = new Set(['audio']);
     const customCount = state.suitcaseApps.filter(a => !builtinIds.has(a.id)).length;
     if (countEl) countEl.innerText = customCount;
 
@@ -1944,7 +1963,7 @@
       }
     }
 
-    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+    const builtinIds = new Set(['audio']);
     const builtinApps = state.suitcaseApps.filter(a => builtinIds.has(a.id));
     const customApps = state.suitcaseApps.filter(a => !builtinIds.has(a.id));
 
@@ -2155,40 +2174,11 @@
   };
 
   const BUILTIN_APP_STYLES = {
-    calc: {
-      bg: 'linear-gradient(135deg, #FF9500 0%, #FF5E3A 100%)',
-      icon: 'calculate',
-      iconColor: '#FFFFFF'
-    },
-    scratchpad: {
-      bg: 'linear-gradient(135deg, #FFD600 0%, #FF9500 100%)',
-      icon: 'edit_note',
-      iconColor: '#121212'
-    },
-    maps: {
-      bg: 'linear-gradient(135deg, #34A853 0%, #4285F4 100%)',
-      icon: 'map',
-      iconColor: '#FFFFFF'
-    },
     audio: {
-      bg: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)',
-      icon: 'headphones',
-      iconColor: '#FFFFFF'
-    },
-    phone: {
-      bg: 'linear-gradient(135deg, #00C853 0%, #64DD17 100%)',
-      icon: 'call',
-      iconColor: '#FFFFFF'
-    },
-    reader: {
-      bg: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
-      icon: 'menu_book',
-      iconColor: '#FFFFFF'
-    },
-    camera: {
-      bg: 'linear-gradient(135deg, #FF2D55 0%, #FF3B30 100%)',
-      icon: 'photo_camera',
-      iconColor: '#FFFFFF'
+      bg: 'linear-gradient(135deg, #181920 0%, #0d0e12 100%)',
+      icon: 'music_note',
+      iconColor: '#00E5FF',
+      border: '1px solid rgba(0, 229, 255, 0.28)'
     }
   };
 
@@ -2227,8 +2217,9 @@
 
     const style = BUILTIN_APP_STYLES[app.id] || (app.pkg ? KNOWN_APP_STYLES[app.pkg] : null);
     if (style) {
+      const borderAttr = style.border ? `border: ${style.border};` : 'border: 1px solid rgba(255,255,255,0.1);';
       return `
-        <div class="${sizeCls} rounded-2xl flex items-center justify-center shadow-md border border-white/10 flex-shrink-0" style="background: ${style.bg};">
+        <div class="${sizeCls} rounded-2xl flex items-center justify-center shadow-md flex-shrink-0" style="background: ${style.bg}; ${borderAttr}">
           <span class="material-symbols-outlined ${iconSizeCls}" style="color: ${style.iconColor};">${style.icon}</span>
         </div>
       `;
@@ -2297,7 +2288,7 @@
     // If it's a real Android package name, try launching via native bridge
     if (window.AndroidBridge && typeof window.AndroidBridge.launchApp === 'function') {
       const foundApp = state.suitcaseApps.find(a => a.id === appId || a.pkg === appId);
-      if (foundApp && foundApp.pkg && !['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera'].includes(foundApp.id)) {
+      if (foundApp && foundApp.pkg && foundApp.id !== 'audio') {
         try {
           const launched = window.AndroidBridge.launchApp(foundApp.pkg);
           if (launched) return;
@@ -2319,7 +2310,7 @@
     hapticFeedback(20);
 
     const targetApp = state.suitcaseApps.find(a => a.id === appId || a.pkg === appId);
-    const builtinIds = new Set(['calc', 'scratchpad', 'maps', 'audio', 'phone', 'reader', 'camera']);
+    const builtinIds = new Set(['audio']);
 
     if (targetApp && !builtinIds.has(targetApp.id)) {
       // User Custom App Preview Card
@@ -2504,7 +2495,7 @@
       `;
     } else if (appId === 'audio') {
       if (titleEl) titleEl.innerText = 'Focus Soundscape Synthesizer';
-      if (iconEl) iconEl.innerText = 'headphones';
+      if (iconEl) iconEl.innerText = 'music_note';
       contentEl.innerHTML = `
         <div class="flex-1 flex flex-col space-y-4">
           <div class="grid grid-cols-2 gap-2" id="soundscape-types">
