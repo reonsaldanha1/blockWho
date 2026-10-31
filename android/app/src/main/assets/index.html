@@ -270,6 +270,75 @@
       animation: lockdownCinematicFade 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
     }
 
+    /* Lockdown Entrance Portal & Hologram HUD Animations */
+    @keyframes lockdownBgFade {
+      0% { opacity: 0; }
+      20% { opacity: 1; }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .animate-lockdown-bg {
+      animation: lockdownBgFade 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes portalRingExpand1 {
+      0% {
+        transform: scale(0.25);
+        opacity: 0.95;
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.9);
+      }
+      100% {
+        transform: scale(3.6);
+        opacity: 0;
+        box-shadow: 0 0 60px 12px rgba(255, 255, 255, 0);
+      }
+    }
+    .animate-portal-ring-1 {
+      animation: portalRingExpand1 0.85s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+    }
+
+    @keyframes portalRingExpand2 {
+      0% {
+        transform: scale(0.15);
+        opacity: 0.85;
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9);
+      }
+      100% {
+        transform: scale(4.4);
+        opacity: 0;
+        box-shadow: 0 0 70px 16px rgba(239, 68, 68, 0);
+      }
+    }
+    .animate-portal-ring-2 {
+      animation: portalRingExpand2 0.95s 0.08s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+    }
+
+    @keyframes portalHudPop {
+      0% {
+        transform: scale(0.7);
+        opacity: 0;
+      }
+      22% {
+        transform: scale(1.08);
+        opacity: 1;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      80% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.15);
+        opacity: 0;
+      }
+    }
+    .animate-portal-hud {
+      animation: portalHudPop 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
     @keyframes viewCyberEnter {
       0% {
         opacity: 0;
@@ -602,16 +671,35 @@
             </div>
           </div>
 
-          <!-- PRIMARY ACTION SYSTEM -->
+          <!-- PRIMARY ACTION SYSTEM: 3-SECOND HOLD LOCKDOWN -->
           <div class="space-y-3 pt-2">
-            <button class="w-full py-4 rounded-full bg-primary text-on-primary hover:bg-primary-container font-label-md text-label-md font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all" id="lockdown-btn">
-              <span class="material-symbols-outlined text-[20px] text-on-primary">lock</span>
-              <span>Start Lockdown</span>
-            </button>
+            <div class="w-full relative">
+              <button class="relative w-full h-16 rounded-full bg-surface-container-high border border-white/10 hover:border-primary/40 flex items-center justify-center overflow-hidden transition-all duration-200 select-none touch-none shadow-[0_8px_24px_rgba(0,0,0,0.5)] group cursor-pointer" id="lockdown-btn">
+                <!-- Outer subtle pulse aura when ready -->
+                <div class="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-500/10 via-white/5 to-cyan-500/10 opacity-70 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+
+                <!-- Animated High-Tech Progress Fill Track -->
+                <div class="absolute left-0 top-0 bottom-0 bg-primary w-0 pointer-events-none transition-none shadow-[0_0_20px_rgba(255,255,255,0.7)]" id="lockdown-hold-progress"></div>
+
+                <!-- Glow Edge Head on the progress bar -->
+                <div class="absolute top-0 bottom-0 w-2 bg-white blur-[2px] opacity-0 pointer-events-none" id="lockdown-progress-glow" style="left: 0%;"></div>
+
+                <!-- Button Text & Icon Content -->
+                <div class="relative z-10 flex items-center justify-center gap-2.5 pointer-events-none">
+                  <div class="w-8 h-8 rounded-full bg-surface-container-lowest/80 border border-white/10 flex items-center justify-center text-primary transition-transform duration-300 group-hover:scale-110" id="lockdown-btn-icon-wrap">
+                    <span class="material-symbols-outlined text-[19px] text-primary transition-all duration-200" id="lockdown-btn-icon">lock</span>
+                  </div>
+                  <div class="flex flex-col items-start leading-tight">
+                    <span class="font-label-md text-label-md text-primary font-bold tracking-wider uppercase transition-colors" id="lockdown-btn-label">HOLD 3S TO ENGAGE</span>
+                    <span class="text-[9px] font-label-sm text-outline tracking-widest uppercase transition-colors" id="lockdown-btn-sublabel">Strict Zero-Bypass Mode</span>
+                  </div>
+                </div>
+              </button>
+            </div>
             <div class="flex items-start justify-center gap-2 px-4 text-center">
               <span class="material-symbols-outlined text-[14px] text-outline mt-0.5 shrink-0">verified_user</span>
               <p class="font-body-sm text-body-sm text-outline">
-                Accessibility lock service armed · Zero bypass allowed until timer reaches zero
+                Accessibility lock service armed · Hold button for 3s to enter strict lockdown
               </p>
             </div>
           </div>

@@ -338,6 +338,32 @@
           gain.connect(this.ctx.destination);
           osc.start();
           osc.stop(t + 0.08);
+        } else if (type === 'lock-heavy') {
+          // Deep cinematic sub-bass impact boom
+          const subOsc = this.ctx.createOscillator();
+          const subGain = this.ctx.createGain();
+          subOsc.type = 'sine';
+          subOsc.frequency.setValueAtTime(110, t);
+          subOsc.frequency.exponentialRampToValueAtTime(26, t + 0.65);
+          subGain.gain.setValueAtTime(0.5, t);
+          subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+          subOsc.connect(subGain);
+          subGain.connect(this.ctx.destination);
+          subOsc.start();
+          subOsc.stop(t + 0.65);
+
+          // Metallic mechanical latch slam
+          const latchOsc = this.ctx.createOscillator();
+          const latchGain = this.ctx.createGain();
+          latchOsc.type = 'triangle';
+          latchOsc.frequency.setValueAtTime(880, t);
+          latchOsc.frequency.exponentialRampToValueAtTime(180, t + 0.28);
+          latchGain.gain.setValueAtTime(0.35, t);
+          latchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+          latchOsc.connect(latchGain);
+          latchGain.connect(this.ctx.destination);
+          latchOsc.start();
+          latchOsc.stop(t + 0.28);
         }
       } catch (e) {
         console.warn('Audio chime suppressed:', e);
@@ -1004,9 +1030,218 @@
     }
   }
 
+  // ==========================================
+  // LOCKDOWN AUDIO CAPACITOR CHARGE SYNTH
+  // ==========================================
+  let lockdownChargeOsc = null;
+  let lockdownChargeGain = null;
+
+  function startLockdownChargeSound() {
+    if (state.audioEnabled === false) return;
+    try {
+      sound.init();
+      const t = sound.ctx.currentTime;
+      lockdownChargeOsc = sound.ctx.createOscillator();
+      lockdownChargeGain = sound.ctx.createGain();
+
+      lockdownChargeOsc.type = 'sawtooth';
+      lockdownChargeOsc.frequency.setValueAtTime(150, t);
+      lockdownChargeOsc.frequency.exponentialRampToValueAtTime(850, t + 3.0);
+
+      const filter = sound.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(350, t);
+      filter.frequency.exponentialRampToValueAtTime(2600, t + 3.0);
+
+      lockdownChargeGain.gain.setValueAtTime(0.04, t);
+      lockdownChargeGain.gain.linearRampToValueAtTime(0.24, t + 3.0);
+
+      lockdownChargeOsc.connect(filter);
+      filter.connect(lockdownChargeGain);
+      lockdownChargeGain.connect(sound.ctx.destination);
+
+      lockdownChargeOsc.start();
+    } catch (e) {}
+  }
+
+  function stopLockdownChargeSound() {
+    if (lockdownChargeGain && sound.ctx) {
+      try {
+        const t = sound.ctx.currentTime;
+        lockdownChargeGain.gain.setValueAtTime(lockdownChargeGain.gain.value, t);
+        lockdownChargeGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        setTimeout(() => {
+          if (lockdownChargeOsc) {
+            try { lockdownChargeOsc.stop(); } catch (e) {}
+            lockdownChargeOsc = null;
+            lockdownChargeGain = null;
+          }
+        }, 90);
+      } catch (e) {}
+    }
+  }
+
+  // ==========================================
+  // FULLSCREEN LOCKDOWN PORTAL ANIMATION
+  // ==========================================
+  function triggerLockdownPortalAnimation() {
+    const portal = document.createElement('div');
+    portal.className = 'fixed inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none overflow-hidden';
+    portal.id = 'lockdown-portal-overlay';
+    portal.innerHTML = `
+      <!-- Deep Cinematic Blur Background -->
+      <div class="absolute inset-0 bg-black/92 backdrop-blur-lg animate-lockdown-bg"></div>
+
+      <!-- Concentric Shockwave Energy Rings -->
+      <div class="absolute w-80 h-80 rounded-full border-2 border-primary/90 animate-portal-ring-1"></div>
+      <div class="absolute w-80 h-80 rounded-full border border-red-500/80 animate-portal-ring-2"></div>
+
+      <!-- Holographic Reticle & Status Banner -->
+      <div class="relative z-10 flex flex-col items-center animate-portal-hud">
+        <div class="w-20 h-20 rounded-full bg-surface-container-highest border border-primary/60 flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.45)] mb-3">
+          <span class="material-symbols-outlined text-4xl text-primary animate-pulse">lock</span>
+        </div>
+        <div class="font-label-md text-sm text-primary font-bold tracking-widest uppercase mb-1">SYSTEM ARMED</div>
+        <div class="font-label-sm text-[11px] text-outline tracking-wider uppercase">Zero Bypass Protocol Engaged</div>
+      </div>
+    `;
+    document.body.appendChild(portal);
+    setTimeout(() => portal.remove(), 1000);
+  }
+
+  // ==========================================
+  // 3-SECOND HOLD LOCKDOWN CONTROLLER
+  // ==========================================
   const lockdownBtn = document.getElementById('lockdown-btn');
+  const lockdownHoldProgress = document.getElementById('lockdown-hold-progress');
+  const lockdownProgressGlow = document.getElementById('lockdown-progress-glow');
+  const lockdownBtnLabel = document.getElementById('lockdown-btn-label');
+  const lockdownBtnSublabel = document.getElementById('lockdown-btn-sublabel');
+  const lockdownBtnIcon = document.getElementById('lockdown-btn-icon');
+
+  let lockdownHoldTimer = null;
+  let lockdownHoldInterval = null;
+  let lockdownHoldStartTime = 0;
+  const LOCKDOWN_HOLD_DURATION_MS = 3000;
+
+  function startLockdownHold(e) {
+    if (e && e.cancelable && e.type.startsWith('touch')) {
+      e.preventDefault();
+    }
+    if (state.isLocked) return;
+
+    lockdownHoldStartTime = Date.now();
+
+    // Start progress animations
+    if (lockdownHoldProgress) {
+      lockdownHoldProgress.style.transition = `width ${LOCKDOWN_HOLD_DURATION_MS}ms linear`;
+      lockdownHoldProgress.style.width = '100%';
+    }
+    if (lockdownProgressGlow) {
+      lockdownProgressGlow.style.opacity = '1';
+      lockdownProgressGlow.style.transition = `left ${LOCKDOWN_HOLD_DURATION_MS}ms linear`;
+      lockdownProgressGlow.style.left = '100%';
+    }
+    if (lockdownBtn) {
+      lockdownBtn.classList.add('ring-2', 'ring-primary/60', 'scale-[0.99]');
+    }
+    if (lockdownBtnIcon) {
+      lockdownBtnIcon.innerText = 'lock_clock';
+    }
+
+    startLockdownChargeSound();
+    hapticFeedback(25);
+
+    // Live countdown label updater
+    if (lockdownHoldInterval) clearInterval(lockdownHoldInterval);
+    lockdownHoldInterval = setInterval(() => {
+      const elapsed = Date.now() - lockdownHoldStartTime;
+      const remainingSec = Math.max(0, ((LOCKDOWN_HOLD_DURATION_MS - elapsed) / 1000)).toFixed(1);
+      if (lockdownBtnLabel) {
+        lockdownBtnLabel.innerText = `ARMING SHIELD (${remainingSec}s)...`;
+      }
+      if (lockdownBtnSublabel) {
+        lockdownBtnSublabel.innerText = 'Keep Holding To Lock Down';
+      }
+      // Progressive tactile feedback
+      if (elapsed > 1000 && elapsed < 1120) hapticFeedback(15);
+      if (elapsed > 2000 && elapsed < 2120) hapticFeedback(25);
+      if (elapsed > 2600 && elapsed < 2720) hapticFeedback(40);
+    }, 100);
+
+    // Full completion trigger
+    lockdownHoldTimer = setTimeout(() => {
+      completeLockdownHold();
+    }, LOCKDOWN_HOLD_DURATION_MS);
+  }
+
+  function cancelLockdownHold() {
+    if (!lockdownHoldStartTime) return;
+    lockdownHoldStartTime = 0;
+
+    if (lockdownHoldTimer) {
+      clearTimeout(lockdownHoldTimer);
+      lockdownHoldTimer = null;
+    }
+    if (lockdownHoldInterval) {
+      clearInterval(lockdownHoldInterval);
+      lockdownHoldInterval = null;
+    }
+
+    stopLockdownChargeSound();
+
+    if (lockdownHoldProgress) {
+      lockdownHoldProgress.style.transition = 'width 250ms ease-out';
+      lockdownHoldProgress.style.width = '0%';
+    }
+    if (lockdownProgressGlow) {
+      lockdownProgressGlow.style.transition = 'left 250ms ease-out';
+      lockdownProgressGlow.style.left = '0%';
+      lockdownProgressGlow.style.opacity = '0';
+    }
+    if (lockdownBtn) {
+      lockdownBtn.classList.remove('ring-2', 'ring-primary/60', 'scale-[0.99]');
+    }
+    if (lockdownBtnLabel) {
+      lockdownBtnLabel.innerText = 'HOLD 3S TO ENGAGE';
+    }
+    if (lockdownBtnSublabel) {
+      lockdownBtnSublabel.innerText = 'Strict Zero-Bypass Mode';
+    }
+    if (lockdownBtnIcon) {
+      lockdownBtnIcon.innerText = 'lock';
+    }
+  }
+
+  function completeLockdownHold() {
+    if (lockdownHoldInterval) clearInterval(lockdownHoldInterval);
+    lockdownHoldInterval = null;
+    lockdownHoldTimer = null;
+    lockdownHoldStartTime = 0;
+
+    stopLockdownChargeSound();
+
+    if (lockdownBtnLabel) lockdownBtnLabel.innerText = 'SECURITY SHIELD ARMED!';
+    if (lockdownBtnSublabel) lockdownBtnSublabel.innerText = 'Zero Bypass Engaged';
+    if (lockdownBtnIcon) lockdownBtnIcon.innerText = 'lock';
+
+    sound.playChime('lock-heavy');
+    hapticFeedback(80);
+
+    // Launch Portal animation
+    triggerLockdownPortalAnimation();
+
+    setTimeout(() => {
+      triggerLockdown();
+      cancelLockdownHold();
+    }, 380);
+  }
+
   if (lockdownBtn) {
-    lockdownBtn.addEventListener('click', triggerLockdown);
+    lockdownBtn.addEventListener('mousedown', startLockdownHold);
+    lockdownBtn.addEventListener('touchstart', startLockdownHold, { passive: false });
+    window.addEventListener('mouseup', cancelLockdownHold);
+    window.addEventListener('touchend', cancelLockdownHold);
   }
 
   function enterLockoutScreen() {
