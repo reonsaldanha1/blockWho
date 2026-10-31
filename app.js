@@ -327,6 +327,17 @@
           gain.connect(this.ctx.destination);
           osc.start();
           osc.stop(t + 0.18);
+        } else if (type === 'tab-switch') {
+          // Futuristic sleek interface micro-tick
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(620, t);
+          osc.frequency.exponentialRampToValueAtTime(940, t + 0.06);
+          gain.gain.setValueAtTime(0.08, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(t + 0.08);
         }
       } catch (e) {
         console.warn('Audio chime suppressed:', e);
@@ -839,8 +850,60 @@
     });
   });
 
+  // ==========================================
+  // DYNAMIC ATMOSPHERE & DARKEN THEME CONTROLLER
+  // ==========================================
+  function updateThemeAtmosphere(mode, isLocked = false) {
+    const ambientLayer = document.getElementById('ambient-theme-layer');
+    const mobileFrame = document.getElementById('mobile-frame');
+    const dialGlow = document.getElementById('dial-atmospheric-glow');
+
+    if (isLocked) {
+      if (mobileFrame) {
+        mobileFrame.classList.add('theme-lockdown-dark');
+      }
+      if (ambientLayer) {
+        ambientLayer.style.background = 'radial-gradient(circle at 50% 25%, rgba(239, 68, 68, 0.07) 0%, rgba(5, 5, 7, 0.92) 65%, rgba(2, 2, 3, 0.98) 100%)';
+      }
+      if (dialGlow) {
+        dialGlow.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+      }
+      return;
+    }
+
+    if (mobileFrame) {
+      mobileFrame.classList.remove('theme-lockdown-dark');
+    }
+
+    if (mode === 'study') {
+      if (ambientLayer) {
+        ambientLayer.style.background = 'radial-gradient(circle at 50% 18%, rgba(0, 229, 255, 0.05) 0%, rgba(19, 19, 21, 0) 70%)';
+      }
+      if (dialGlow) {
+        dialGlow.style.backgroundColor = 'rgba(0, 229, 255, 0.08)';
+      }
+    } else if (mode === 'work') {
+      if (ambientLayer) {
+        ambientLayer.style.background = 'radial-gradient(circle at 50% 18%, rgba(139, 92, 246, 0.06) 0%, rgba(19, 19, 21, 0) 70%)';
+      }
+      if (dialGlow) {
+        dialGlow.style.backgroundColor = 'rgba(139, 92, 246, 0.08)';
+      }
+    } else if (mode === 'sleep') {
+      if (ambientLayer) {
+        ambientLayer.style.background = 'radial-gradient(circle at 50% 18%, rgba(255, 183, 77, 0.03) 0%, rgba(10, 10, 13, 0.8) 75%)';
+      }
+      if (dialGlow) {
+        dialGlow.style.backgroundColor = 'rgba(255, 183, 77, 0.04)';
+      }
+    }
+  }
+
   // Mode Switcher
   function switchMode(mode) {
+    state.selectedMode = mode;
+    saveState();
+    updateThemeAtmosphere(mode, state.isLocked);
     state.selectedMode = mode;
     saveState();
 
@@ -947,9 +1010,25 @@
   }
 
   function enterLockoutScreen() {
-    document.querySelectorAll('.screen-view').forEach(s => s.classList.add('hidden'));
+    updateThemeAtmosphere(state.selectedMode, true);
+
+    // Trigger cinematic darken transition flash
+    const flashEl = document.createElement('div');
+    flashEl.className = 'lockdown-cinematic-flash pointer-events-none fixed inset-0 z-50';
+    document.body.appendChild(flashEl);
+    setTimeout(() => flashEl.remove(), 700);
+
+    // Smooth view switch
+    document.querySelectorAll('.screen-view').forEach(s => {
+      s.classList.add('hidden');
+      s.classList.remove('view-active-fade');
+    });
     const lockoutView = document.getElementById('view-lockout');
-    if (lockoutView) lockoutView.classList.remove('hidden');
+    if (lockoutView) {
+      lockoutView.classList.remove('hidden');
+      void lockoutView.offsetWidth;
+      lockoutView.classList.add('view-active-fade');
+    }
 
     const nav = document.getElementById('app-bottom-nav');
     if (nav) nav.classList.add('hidden');
@@ -1015,6 +1094,7 @@
       headerStatusText.innerText = 'READY';
     }
 
+    updateThemeAtmosphere(state.selectedMode, false);
     navigateToTab('focus');
   }
 
@@ -2684,15 +2764,21 @@
       return;
     }
 
-    // Hide all screens
-    document.querySelectorAll('.screen-view').forEach(s => s.classList.add('hidden'));
+    // Smoothly transition screens
+    document.querySelectorAll('.screen-view').forEach(s => {
+      s.classList.add('hidden');
+      s.classList.remove('view-active-fade');
+    });
 
     const targetScreen = document.getElementById(`view-${tabId}`);
     if (targetScreen) {
       targetScreen.classList.remove('hidden');
+      void targetScreen.offsetWidth; // Force reflow for entrance animation
+      targetScreen.classList.add('view-active-fade');
     }
 
     updateNavHighlight(tabId);
+    updateThemeAtmosphere(state.selectedMode, state.isLocked);
 
     // Tab-specific renders
     if (tabId === 'focus') {
@@ -2724,8 +2810,8 @@
       e.preventDefault();
       const tab = btn.getAttribute('data-tab');
       navigateToTab(tab);
-      sound.playChime('click');
-      hapticFeedback(15);
+      sound.playChime('tab-switch');
+      hapticFeedback(12);
     });
   });
 

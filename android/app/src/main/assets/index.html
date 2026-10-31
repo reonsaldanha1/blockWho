@@ -234,6 +234,91 @@
     .anim-arc-surge {
       animation: arcLaserSurge 0.45s ease-out forwards;
     }
+
+    /* Cool Darken Theme & Atmosphere Transitions */
+    .mobile-frame {
+      transition: background-color 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .theme-lockdown-dark {
+      background-color: #050507 !important;
+      border-color: rgba(239, 68, 68, 0.3) !important;
+      box-shadow: 0 0 90px rgba(239, 68, 68, 0.12), inset 0 0 120px rgba(0, 0, 0, 0.85) !important;
+    }
+
+    @keyframes lockdownCinematicFade {
+      0% {
+        opacity: 0;
+        backdrop-filter: blur(0px) brightness(1);
+        background: transparent;
+      }
+      35% {
+        opacity: 1;
+        backdrop-filter: blur(16px) brightness(0.12);
+        background: rgba(0, 0, 0, 0.94);
+      }
+      100% {
+        opacity: 0;
+        backdrop-filter: blur(0px) brightness(1);
+        background: transparent;
+      }
+    }
+
+    .lockdown-cinematic-flash {
+      animation: lockdownCinematicFade 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    @keyframes viewCyberEnter {
+      0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .view-active-fade {
+      animation: viewCyberEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes lockdownBreathe {
+      0%, 100% {
+        text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+      }
+      50% {
+        text-shadow: 0 0 28px rgba(255, 255, 255, 0.5), 0 0 50px rgba(239, 68, 68, 0.25);
+      }
+    }
+
+    #mainTimer {
+      animation: lockdownBreathe 3.2s ease-in-out infinite;
+    }
+
+    /* Cyber Card Hover & Tactile Physics */
+    .cyber-card {
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.25s ease,
+                  box-shadow 0.25s ease,
+                  background-color 0.25s ease;
+    }
+    .cyber-card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 255, 255, 0.02);
+    }
+    .cyber-card:active {
+      transform: scale(0.985);
+    }
+
+    .nav-tab-btn {
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-tab-btn:active {
+      transform: scale(0.88);
+    }
   </style>
 
   <!-- Tailwind CSS & Exact blockWho Material 3 Design Tokens -->
@@ -346,7 +431,9 @@
   <div class="desktop-wrapper">
 
     <!-- MOBILE SHELL CONTAINER -->
-    <div class="mobile-frame" id="mobile-frame">
+    <div class="mobile-frame relative overflow-hidden" id="mobile-frame">
+      <!-- Dynamic Ambient Darken Theme Layer -->
+      <div class="absolute inset-0 pointer-events-none transition-all duration-700 ease-out z-0" id="ambient-theme-layer"></div>
 
       <!-- APP HEADER BAR -->
       <header class="sticky top-0 w-full z-40 bg-surface/85 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.35)]">
@@ -399,7 +486,7 @@
           <!-- THE SIGNATURE ROTARY WHEEL CONTAINER -->
           <div class="relative w-full aspect-square max-w-[340px] mx-auto flex items-center justify-center select-none" id="rotary-container">
             <!-- Background atmospheric glow -->
-            <div class="absolute inset-4 rounded-full bg-surface-container-high/40 blur-2xl pointer-events-none"></div>
+            <div class="absolute inset-4 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none transition-all duration-700" id="dial-atmospheric-glow"></div>
 
             <!-- Ephemeral Particles Container -->
             <div class="absolute inset-0 pointer-events-none overflow-visible z-30" id="stepper-particles-container"></div>
@@ -473,7 +560,7 @@
           <!-- CARDS: QUICK PREP & SAFETY CONTROLS (Bento Pairing) -->
           <div class="grid grid-cols-2 gap-space-sm pt-1">
             <!-- The Suitcase Mini Card -->
-            <div class="p-3.5 rounded-lg bg-surface-container-low flex flex-col justify-between space-y-3">
+            <div class="p-3.5 rounded-lg bg-surface-container-low flex flex-col justify-between space-y-3 cyber-card border border-white/5">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5">
                   <span class="material-symbols-outlined text-[16px] text-primary">business_center</span>
@@ -499,7 +586,7 @@
             </div>
 
             <!-- Parachute & Safety Control Card -->
-            <div class="p-3.5 rounded-lg bg-surface-container-low flex flex-col justify-between space-y-3">
+            <div class="p-3.5 rounded-lg bg-surface-container-low flex flex-col justify-between space-y-3 cyber-card border border-white/5">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5">
                   <span class="text-[13px] select-none leading-none">🪂</span>
