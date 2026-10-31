@@ -388,6 +388,75 @@
     .nav-tab-btn:active {
       transform: scale(0.88);
     }
+    /* ==========================================
+       CYBER TOGGLE SWITCH COMPONENT
+       ========================================== */
+    .cyber-toggle {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      padding: 2px;
+    }
+    .cyber-toggle input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      margin: 0;
+    }
+    .cyber-toggle-track {
+      width: 46px;
+      height: 26px;
+      background-color: #24252C;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 9999px;
+      position: relative;
+      display: block;
+      box-sizing: border-box;
+      transition: background 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .cyber-toggle-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background-color: #8E9196;
+      border-radius: 9999px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  background-color 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  width 0.2s ease;
+    }
+    .cyber-toggle:hover .cyber-toggle-track {
+      border-color: rgba(255, 255, 255, 0.25);
+      background-color: #2A2B33;
+    }
+    .cyber-toggle:active .cyber-toggle-thumb {
+      width: 24px;
+    }
+    /* Active / Checked State */
+    .cyber-toggle input:checked + .cyber-toggle-track {
+      background: linear-gradient(135deg, #00C853 0%, #10B981 100%);
+      border-color: rgba(16, 185, 129, 0.6);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    }
+    .cyber-toggle input:checked + .cyber-toggle-track .cyber-toggle-thumb {
+      transform: translateX(20px);
+      background-color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 255, 255, 0.6);
+    }
+    .cyber-toggle input:checked:active + .cyber-toggle-track .cyber-toggle-thumb {
+      transform: translateX(16px);
+      width: 24px;
+    }
   </style>
 
   <!-- Tailwind CSS & Exact blockWho Material 3 Design Tokens -->
@@ -1448,7 +1517,12 @@
               <div class="text-[10px] text-outline">Tactile feedback on locks & timer</div>
             </div>
           </div>
-          <input type="checkbox" id="toggle-haptics" checked class="accent-white w-4 h-4 cursor-pointer">
+          <label class="cyber-toggle" title="Toggle Haptic Feedback">
+            <input type="checkbox" id="toggle-haptics" checked>
+            <span class="cyber-toggle-track">
+              <span class="cyber-toggle-thumb"></span>
+            </span>
+          </label>
         </div>
 
         <div class="p-3 rounded-xl bg-surface-container flex items-center justify-between border border-white/5">
@@ -1459,7 +1533,12 @@
               <div class="text-[10px] text-outline">Synthesizer chimes & timer bells</div>
             </div>
           </div>
-          <input type="checkbox" id="toggle-audio-effects" checked class="accent-white w-4 h-4 cursor-pointer">
+          <label class="cyber-toggle" title="Toggle Audio Effects">
+            <input type="checkbox" id="toggle-audio-effects" checked>
+            <span class="cyber-toggle-track">
+              <span class="cyber-toggle-thumb"></span>
+            </span>
+          </label>
         </div>
 
         <button class="w-full p-3 rounded-xl bg-surface-container hover:bg-surface-variant flex items-center justify-between border border-white/5 transition-colors cursor-pointer" id="btn-open-perm-manager">

@@ -2044,9 +2044,11 @@
           <span class="material-symbols-outlined text-[16px]">visibility</span>
         </button>
         ${deleteBtnHtml}
-        <label class="relative inline-flex items-center cursor-pointer p-1">
-          <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="sr-only peer suitcase-toggle">
-          <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[6px] after:left-[6px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+        <label class="cyber-toggle" title="${app.packed ? 'Packed (Whitelisted)' : 'Unpacked (Intercepted)'}">
+          <input type="checkbox" data-id="${app.id}" ${app.packed ? 'checked' : ''} class="suitcase-toggle">
+          <span class="cyber-toggle-track">
+            <span class="cyber-toggle-thumb"></span>
+          </span>
         </label>
       </div>
     `;
@@ -2974,9 +2976,11 @@
           <button class="btn-delete-routine w-8 h-8 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Delete routine">
             <span class="material-symbols-outlined text-[16px]">delete</span>
           </button>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''} class="sr-only peer">
-            <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          <label class="cyber-toggle" title="${r.active ? 'Scheduled Active' : 'Disabled'}">
+            <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''}>
+            <span class="cyber-toggle-track">
+              <span class="cyber-toggle-thumb"></span>
+            </span>
           </label>
         </div>
       `;
