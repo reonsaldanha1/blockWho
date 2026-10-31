@@ -1468,7 +1468,9 @@
     const targetDate = state.lockEndTime ? new Date(state.lockEndTime) : new Date(Date.now() + totalSecs * 1000);
     const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const lockRemark = document.getElementById('lock-ends-remark');
-    if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr} · Stay focused`;
+    if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr}`;
+    const stayFocusedEl = document.getElementById('lock-stay-focused-text');
+    if (stayFocusedEl) stayFocusedEl.innerText = 'STAY FOCUSED';
   }
 
   // ==========================================

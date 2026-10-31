@@ -842,11 +842,16 @@
 
                 <!-- Dynamic Depreciating Percentage Badge -->
                 <div class="flex items-center gap-1.5 text-[10px] font-label-sm font-semibold tracking-wider text-outline mt-0.5">
-                  <span id="lock-percent-badge" class="px-2 py-0.5 rounded-full bg-surface-container-lowest text-cyan-400 border border-cyan-500/20">100% LEFT</span>
+                  <span id="lock-percent-badge" class="px-2 py-0.5 rounded-full bg-surface-container-lowest text-cyan-400 border border-cyan-500/20">100% REMAINING</span>
                 </div>
-                <p class="font-body-sm text-[10px] text-outline mt-1 tracking-wide max-w-[160px] truncate" id="lock-ends-remark">
-                  Ends at 3:45 PM
-                </p>
+
+                <!-- Prominent Stay Focused & End Time Readout -->
+                <div class="flex flex-col items-center mt-1">
+                  <span class="font-label-sm text-[11px] font-bold uppercase tracking-widest text-cyan-400" id="lock-stay-focused-text">STAY FOCUSED</span>
+                  <p class="font-mono text-[11px] text-slate-300 mt-0.5" id="lock-ends-remark">
+                    Ends strictly at 3:45 PM
+                  </p>
+                </div>
               </div>
             </div>
 
