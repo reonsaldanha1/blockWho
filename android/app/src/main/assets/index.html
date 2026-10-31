@@ -1573,12 +1573,16 @@
         </p>
       </div>
 
-      <!-- Factory Reset Data -->
-      <div class="pt-2">
+      <!-- Factory Reset Data (Disabled during active lockdown) -->
+      <div class="pt-2" id="profile-reset-section">
         <button class="w-full py-2.5 rounded-xl bg-error-container/30 hover:bg-error-container/50 text-error font-label-sm text-xs font-semibold uppercase tracking-wider border border-error/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer" id="btn-reset-app-data">
           <span class="material-symbols-outlined text-[15px]">delete_forever</span>
           <span>Reset App Data & Streak</span>
         </button>
+        <div class="w-full py-2.5 px-3 rounded-xl bg-surface-container-high/80 border border-white/5 text-center text-xs text-outline font-label-sm hidden items-center justify-center gap-1.5 select-none" id="profile-reset-locked-msg">
+          <span class="material-symbols-outlined text-[15px] text-amber-400">shield_lock</span>
+          <span>Reset disabled during active lockdown</span>
+        </div>
       </div>
     </div>
   </div>

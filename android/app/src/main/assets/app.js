@@ -1316,6 +1316,7 @@
 
     renderLockSuitcaseDock();
     updateLockoutDisplay();
+    updateProfileResetVisibility();
   }
 
   function exitLockoutToFocus() {
@@ -1351,6 +1352,7 @@
     }
 
     updateThemeAtmosphere(state.selectedMode, false);
+    updateProfileResetVisibility();
     navigateToTab('focus');
   }
 
@@ -3370,6 +3372,24 @@
   // ==========================================
   // 13. PROFILE & SYSTEM SETTINGS MODAL
   // ==========================================
+  function updateProfileResetVisibility() {
+    const btnReset = document.getElementById('btn-reset-app-data');
+    const msgLocked = document.getElementById('profile-reset-locked-msg');
+    if (state && state.isLocked) {
+      if (btnReset) btnReset.classList.add('hidden');
+      if (msgLocked) {
+        msgLocked.classList.remove('hidden');
+        msgLocked.classList.add('flex');
+      }
+    } else {
+      if (btnReset) btnReset.classList.remove('hidden');
+      if (msgLocked) {
+        msgLocked.classList.add('hidden');
+        msgLocked.classList.remove('flex');
+      }
+    }
+  }
+
   const btnHeaderProfile = document.getElementById('btn-header-profile');
   const modalProfile = document.getElementById('modal-profile');
   const btnCloseProfile = document.getElementById('btn-close-profile-modal');
@@ -3383,6 +3403,8 @@
       if (streakVal) streakVal.innerText = `${state.tower.streakDays} Days`;
       if (hoursVal) hoursVal.innerText = `${state.tower.totalFocusHours}h`;
       if (chuteVal) chuteVal.innerText = `${state.parachutesCount} remaining`;
+
+      updateProfileResetVisibility();
 
       modalProfile.classList.remove('hidden');
       modalProfile.classList.add('flex');
@@ -3434,6 +3456,10 @@
   const btnResetAppData = document.getElementById('btn-reset-app-data');
   if (btnResetAppData) {
     btnResetAppData.addEventListener('click', () => {
+      if (state && state.isLocked) {
+        alert('Resetting app data and streak is strictly prohibited during active lockdown mode.');
+        return;
+      }
       if (confirm('Are you sure you want to reset all streak progress, routines, and app data? This cannot be undone.')) {
         localStorage.clear();
         location.reload();
