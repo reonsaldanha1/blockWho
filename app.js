@@ -364,6 +364,24 @@
           latchGain.connect(this.ctx.destination);
           latchOsc.start();
           latchOsc.stop(t + 0.28);
+        } else if (type === 'victory-fanfare') {
+          // Uplifting victory harmonic arpeggio
+          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const noteTime = t + (idx * 0.12);
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, noteTime);
+            gain.gain.setValueAtTime(0.24, noteTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.7);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(noteTime);
+            osc.stop(noteTime + 0.7);
+          });
         }
       } catch (e) {
         console.warn('Audio chime suppressed:', e);
@@ -1368,27 +1386,145 @@
     countdownInterval = setInterval(tick, 1000);
   }
 
+  // ==========================================
+  // ROUND DEPRECIATING COUNTDOWN DIAL CONTROLLER
+  // ==========================================
+  const LOCK_DIAL_RADIUS = 110;
+  const LOCK_DIAL_CIRCUMFERENCE = 2 * Math.PI * LOCK_DIAL_RADIUS; // 691.15
+
+  function initLockDialTicks() {
+    const ticksGroup = document.getElementById('lock-dial-ticks');
+    if (!ticksGroup || ticksGroup.children.length > 0) return;
+
+    for (let i = 0; i < 60; i++) {
+      const angle = (i * 6) * (Math.PI / 180);
+      const isMajor = i % 5 === 0;
+      const innerR = isMajor ? 117 : 120;
+      const outerR = 124;
+
+      const x1 = 140 + innerR * Math.cos(angle);
+      const y1 = 140 + innerR * Math.sin(angle);
+      const x2 = 140 + outerR * Math.cos(angle);
+      const y2 = 140 + outerR * Math.sin(angle);
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1.toFixed(1));
+      line.setAttribute('y1', y1.toFixed(1));
+      line.setAttribute('x2', x2.toFixed(1));
+      line.setAttribute('y2', y2.toFixed(1));
+      line.setAttribute('stroke', 'currentColor');
+      line.setAttribute('stroke-width', isMajor ? '1.5' : '1');
+      ticksGroup.appendChild(line);
+    }
+  }
+
   function updateLockoutDisplay() {
+    initLockDialTicks();
+
     const totalSecs = state.lockSecondsRemaining;
+    const initialTotal = Math.max(60, state.lockTotalSeconds || 3600);
+    const fraction = Math.min(1, Math.max(0, totalSecs / initialTotal));
+
     const hrs = Math.floor(totalSecs / 3600);
     const mins = Math.floor((totalSecs % 3600) / 60);
     const secs = totalSecs % 60;
 
     const timerStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     const mainTimer = document.getElementById('mainTimer');
-
     if (mainTimer) mainTimer.innerText = timerStr;
+
+    // Update Round Depreciating Dial Arc
+    const lockProgressArc = document.getElementById('lock-progress-arc');
+    const lockDialKnob = document.getElementById('lock-dial-knob');
+    const lockDialKnobCore = document.getElementById('lock-dial-knob-core');
+    const lockPercentBadge = document.getElementById('lock-percent-badge');
+
+    if (lockProgressArc) {
+      const offset = LOCK_DIAL_CIRCUMFERENCE * (1 - fraction);
+      lockProgressArc.style.strokeDasharray = LOCK_DIAL_CIRCUMFERENCE.toFixed(1);
+      lockProgressArc.style.strokeDashoffset = offset.toFixed(1);
+    }
+
+    // Update Leading Edge Spark Knob
+    if (lockDialKnob && lockDialKnobCore) {
+      const angleRad = fraction * 2 * Math.PI;
+      const knobX = 140 + LOCK_DIAL_RADIUS * Math.cos(angleRad);
+      const knobY = 140 + LOCK_DIAL_RADIUS * Math.sin(angleRad);
+
+      lockDialKnob.setAttribute('cx', knobX.toFixed(2));
+      lockDialKnob.setAttribute('cy', knobY.toFixed(2));
+      lockDialKnobCore.setAttribute('cx', knobX.toFixed(2));
+      lockDialKnobCore.setAttribute('cy', knobY.toFixed(2));
+    }
+
+    if (lockPercentBadge) {
+      const pct = Math.round(fraction * 100);
+      lockPercentBadge.innerText = `${pct}% REMAINING`;
+    }
 
     const targetDate = state.lockEndTime ? new Date(state.lockEndTime) : new Date(Date.now() + totalSecs * 1000);
     const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const lockRemark = document.getElementById('lock-ends-remark');
-    if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr} · Stay disciplined`;
+    if (lockRemark) lockRemark.innerText = `Ends strictly at ${timeStr} · Stay focused`;
+  }
+
+  // ==========================================
+  // VICTORY LOCKOUT CELEBRATION ANIMATION
+  // ==========================================
+  function triggerLockoutCompleteCelebration(sessionHours, floorBuilt, floorNumber, progressHours) {
+    // 1. Play victory fanfare and celebratory haptics
+    sound.playChime('victory-fanfare');
+    hapticFeedback(80);
+    setTimeout(() => hapticFeedback(50), 180);
+    setTimeout(() => hapticFeedback(100), 380);
+
+    // 2. Launch full screen celebration modal
+    const modal = document.getElementById('modal-lockout-complete');
+    const statHours = document.getElementById('complete-stat-hours');
+    const statStreak = document.getElementById('complete-stat-streak');
+    const towerTitle = document.getElementById('complete-tower-title');
+    const towerNum = document.getElementById('complete-tower-progress-num');
+    const towerBar = document.getElementById('complete-tower-bar');
+    const towerRemark = document.getElementById('complete-tower-remark');
+    const btnDismiss = document.getElementById('btn-dismiss-complete');
+
+    if (statHours) statHours.innerText = `+${sessionHours.toFixed(1)}h`;
+    if (statStreak) statStreak.innerText = `🔥 Day ${state.tower.streakDays || 1}`;
+
+    if (floorBuilt) {
+      if (towerTitle) towerTitle.innerText = `Floor ${floorNumber} Built!`;
+      if (towerNum) towerNum.innerText = `3.0 / 3.0h (100%)`;
+      if (towerBar) towerBar.style.width = '100%';
+      if (towerRemark) towerRemark.innerText = `🎉 Milestone achieved! Floor ${floorNumber} has been added to your skyscraper!`;
+    } else {
+      const pct = Math.min(100, Math.round((progressHours / MIN_HOURS_PER_FLOOR) * 100));
+      const remaining = Math.max(0, Math.round((MIN_HOURS_PER_FLOOR - progressHours) * 10) / 10);
+      if (towerTitle) towerTitle.innerText = `Floor ${floorNumber + 1} Construction`;
+      if (towerNum) towerNum.innerText = `${progressHours.toFixed(1)} / 3.0h`;
+      if (towerBar) towerBar.style.width = `${pct}%`;
+      if (towerRemark) towerRemark.innerText = `${remaining.toFixed(1)}h remaining to complete this floor`;
+    }
+
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    // Dismiss handler
+    if (btnDismiss) {
+      btnDismiss.onclick = () => {
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+        exitLockoutToFocus();
+        sound.playChime('click');
+        hapticFeedback(20);
+      };
+    }
   }
 
   function completeLockoutSession() {
-    sound.playChime('success');
-    hapticFeedback(60);
-
     const sessionHours = state.lockTotalSeconds / 3600;
     state.tower.totalFocusHours = Math.round(((state.tower.totalFocusHours || 0) + sessionHours) * 10) / 10;
     state.tower.streakDays = (state.tower.streakDays || 0) + 1;
@@ -1400,7 +1536,11 @@
     const progressHoursInCurrentFloor = Math.round((state.tower.totalFocusHours % MIN_HOURS_PER_FLOOR) * 10) / 10;
     const todayStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
+    let floorBuilt = false;
+    let newFloorNumber = currentFloorsCount;
+
     if (earnedFloorsCount > currentFloorsCount) {
+      floorBuilt = true;
       const floorsToAdd = earnedFloorsCount - currentFloorsCount;
       for (let i = 0; i < floorsToAdd; i++) {
         const newFloorNum = currentFloorsCount + i + 1;
@@ -1414,20 +1554,16 @@
       }
       state.tower.floors = currentFloors;
       state.tower.floorsCount = currentFloors.length;
-
-      saveState();
-      renderTowerTab();
-      exitLockoutToFocus();
-      alert(`🎉 Milestone achieved! Minimum 3 hours focus completed — Tower Floor ${state.tower.floorsCount} successfully constructed!`);
+      newFloorNumber = currentFloors.length;
     } else {
       state.tower.floorsCount = currentFloorsCount;
-      const remainingToBuild = Math.max(0, Math.round((MIN_HOURS_PER_FLOOR - progressHoursInCurrentFloor) * 10) / 10);
-
-      saveState();
-      renderTowerTab();
-      exitLockoutToFocus();
-      alert(`Session complete! +${sessionHours.toFixed(1)}h added. Progress towards Floor ${currentFloorsCount + 1}: ${progressHoursInCurrentFloor.toFixed(1)}h / 3.0h (${remainingToBuild.toFixed(1)}h remaining).`);
     }
+
+    saveState();
+    renderTowerTab();
+
+    // Trigger cool celebration sequence & modal
+    triggerLockoutCompleteCelebration(sessionHours, floorBuilt, newFloorNumber, progressHoursInCurrentFloor);
   }
 
   // ==========================================
