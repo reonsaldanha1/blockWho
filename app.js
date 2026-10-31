@@ -27,10 +27,8 @@
     audioEnabled: true,
     strictMode: true,
     
-    // The Suitcase Whitelisted Items - Focus Soundscape is the single built-in tool
-    suitcaseApps: [
-      { id: 'audio', name: 'Focus Soundscape', icon: 'music_note', desc: '40Hz Gamma binaural beats & ambient soundscapes', packed: true }
-    ],
+    // The Suitcase Whitelisted Items - User custom-added apps only (Focus Soundscape is permanent default in lockdown)
+    suitcaseApps: [],
 
     // The Tower (Habit Skyscraper) - starts empty with zero floors
     tower: {
@@ -50,7 +48,7 @@
     scratchpadContent: "blockWho Focus Principles:\n1. Zero bypass allowed until timer reaches zero.\n2. Protect dopamine reservoirs.\n3. The Parachute is for true emergencies only.\n"
   };
 
-  const REMOVED_BUILTIN_IDS = new Set(['calc', 'scratchpad', 'maps', 'phone', 'reader', 'camera']);
+  const REMOVED_BUILTIN_IDS = new Set(['calc', 'scratchpad', 'maps', 'phone', 'reader', 'camera', 'audio']);
 
   let state = loadState();
 
@@ -61,23 +59,8 @@
         const parsed = JSON.parse(saved);
         const merged = Object.assign({}, DEFAULT_STATE, parsed);
         if (Array.isArray(merged.suitcaseApps)) {
-          // Cleanly remove any legacy built-in tools, preserving Focus Soundscape and user custom apps
+          // Cleanly remove any built-in tools from user-manageable suitcase (Focus Soundscape is default in lockdown)
           merged.suitcaseApps = merged.suitcaseApps.filter(a => !REMOVED_BUILTIN_IDS.has(a.id));
-
-          // Ensure Focus Soundscape is present with dark music icon
-          const audioApp = merged.suitcaseApps.find(a => a.id === 'audio');
-          if (audioApp) {
-            audioApp.icon = 'music_note';
-            audioApp.name = 'Focus Soundscape';
-          } else {
-            merged.suitcaseApps.unshift({
-              id: 'audio',
-              name: 'Focus Soundscape',
-              icon: 'music_note',
-              desc: '40Hz Gamma binaural beats & ambient soundscapes',
-              packed: true
-            });
-          }
         }
         return merged;
       }
@@ -1933,15 +1916,17 @@
   }
 
   function updateSuitcaseCounters() {
-    const packedCount = state.suitcaseApps.filter(a => a.packed).length;
-    const totalApps = state.suitcaseApps.length;
+    const customPacked = state.suitcaseApps.filter(a => a.packed && a.id !== 'audio');
+    const packedCount = customPacked.length;
+    const totalApps = state.suitcaseApps.filter(a => a.id !== 'audio').length;
     const counterEl = document.getElementById('suitcase-active-counter');
     const fractionEl = document.getElementById('focus-suitcase-fraction');
     const badgeEl = document.getElementById('lock-suitcase-allowed-badge');
 
     if (counterEl) counterEl.innerText = packedCount;
     if (fractionEl) fractionEl.innerText = `${packedCount}/${totalApps}`;
-    if (badgeEl) badgeEl.innerText = `${packedCount} Allowed`;
+    // Lockdown mode badge includes 1 permanent default app (Focus Soundscape) + custom apps
+    if (badgeEl) badgeEl.innerText = `${packedCount + 1} Allowed`;
   }
 
   function renderSuitcaseTab() {
@@ -1964,45 +1949,33 @@
       }
     }
 
-    const builtinIds = new Set(['audio']);
-    const builtinApps = state.suitcaseApps.filter(a => builtinIds.has(a.id));
-    const customApps = state.suitcaseApps.filter(a => !builtinIds.has(a.id));
+    const customApps = state.suitcaseApps.filter(a => a.id !== 'audio');
 
-    // Section 1: Built-In Focus Tools
-    const sec1Header = document.createElement('div');
-    sec1Header.className = 'pt-1 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
-    sec1Header.innerHTML = `<span>Built-in Tools (${builtinApps.length})</span>`;
-    container.appendChild(sec1Header);
-
-    builtinApps.forEach(app => {
-      container.appendChild(createSuitcaseAppCard(app, false));
-    });
-
-    // Section 2: User Added Apps
-    const sec2Header = document.createElement('div');
-    sec2Header.className = 'pt-4 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
-    sec2Header.innerHTML = `
-      <span>Your Added Apps (${customApps.length})</span>
+    // Section: Whitelisted Apps (Focus Soundscape is default in lockdown and not manageable here)
+    const secHeader = document.createElement('div');
+    secHeader.className = 'pt-2 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
+    secHeader.innerHTML = `
+      <span>Whitelisted Apps (${customApps.length})</span>
       <button class="text-primary hover:underline text-[11px] font-bold flex items-center gap-0.5 cursor-pointer btn-sub-add-app">
         <span class="material-symbols-outlined text-[13px]">add</span> Add More
       </button>
     `;
-    const subAddBtn = sec2Header.querySelector('.btn-sub-add-app');
+    const subAddBtn = secHeader.querySelector('.btn-sub-add-app');
     if (subAddBtn) subAddBtn.addEventListener('click', openAddAppModal);
-    container.appendChild(sec2Header);
+    container.appendChild(secHeader);
 
     if (customApps.length === 0) {
       const emptyCard = document.createElement('div');
-      emptyCard.className = 'p-4 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center space-y-2';
+      emptyCard.className = 'p-6 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center space-y-2.5';
       emptyCard.innerHTML = `
-        <div class="w-10 h-10 rounded-full bg-surface-container-high text-primary flex items-center justify-center mx-auto">
-          <span class="material-symbols-outlined text-[20px]">add_to_home_screen</span>
+        <div class="w-11 h-11 rounded-full bg-surface-container-high text-primary flex items-center justify-center mx-auto">
+          <span class="material-symbols-outlined text-[22px]">add_to_home_screen</span>
         </div>
-        <div class="font-label-md text-primary font-bold text-xs">No Custom Apps Added</div>
-        <p class="font-body-sm text-[11px] text-outline max-w-[240px] mx-auto">Tap "+ Add App" to pick individual apps from your device to keep accessible during focus.</p>
-        <button class="btn-empty-add-app px-3.5 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer mt-1">
-          <span class="material-symbols-outlined text-[14px]">add</span>
-          <span>Add App</span>
+        <div class="font-label-md text-primary font-bold text-xs">No Custom Apps Whitelisted</div>
+        <p class="font-body-sm text-[11px] text-outline max-w-[260px] mx-auto">Focus Soundscape is permanently active by default during lockdown. Tap "+ Add App" to whitelist any specific apps from your device.</p>
+        <button class="btn-empty-add-app px-4 py-2 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer mt-1">
+          <span class="material-symbols-outlined text-[15px]">add</span>
+          <span>Add App to Whitelist</span>
         </button>
       `;
       emptyCard.querySelector('.btn-empty-add-app').addEventListener('click', openAddAppModal);
@@ -2240,33 +2213,33 @@
     const dockContainer = document.getElementById('dock-allowed-apps');
     const badge = document.getElementById('lock-suitcase-allowed-badge');
 
-    const packed = state.suitcaseApps.filter(a => a.packed);
-    if (badge) badge.innerText = `${packed.length} Allowed`;
+    // Focus Soundscape is an immutable, built-in default app during lockdown mode
+    const defaultApps = [
+      { id: 'audio', name: 'Focus Soundscape', icon: 'music_note', isDefault: true }
+    ];
+    const userPacked = state.suitcaseApps.filter(a => a.packed && a.id !== 'audio');
+    const allAllowed = [...defaultApps, ...userPacked];
+
+    if (badge) badge.innerText = `${allAllowed.length} Allowed`;
 
     if (dockContainer) {
       dockContainer.innerHTML = '';
-      if (packed.length === 0) {
-        dockContainer.className = 'w-full';
-        dockContainer.innerHTML = `
-          <div class="w-full py-4 px-3 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center">
-            <div class="font-label-md text-xs font-semibold text-outline">No Allowed Apps in Suitcase</div>
-            <div class="font-body-sm text-[11px] text-outline/70 mt-0.5">All applications are strictly locked during this focus cycle.</div>
-          </div>
-        `;
-        return;
-      }
-
-      // Distraction-Free Typographic List: Display ONLY the names of the apps without icons
       dockContainer.className = 'flex flex-col gap-1.5 w-full';
-      packed.forEach(app => {
+
+      allAllowed.forEach(app => {
         const row = document.createElement('button');
         row.className = 'w-full py-2.5 px-3.5 rounded-xl bg-surface-container-high/70 hover:bg-surface-container-highest border border-white/5 flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer group shadow-sm';
         const fullName = app.name || app.pkg || 'Application';
-        
+
+        const defaultTag = app.isDefault
+          ? `<span class="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[9px] font-label-sm font-semibold tracking-wider uppercase shrink-0">Default</span>`
+          : '';
+
         row.innerHTML = `
           <div class="flex items-center gap-2.5 truncate pr-2">
-            <span class="w-1.5 h-1.5 rounded-full bg-primary/40 group-hover:bg-primary transition-colors shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full ${app.isDefault ? 'bg-cyan-400' : 'bg-primary/40 group-hover:bg-primary'} transition-colors shrink-0"></span>
             <span class="font-label-md text-xs font-semibold text-primary/90 tracking-wide truncate">${fullName}</span>
+            ${defaultTag}
           </div>
           <div class="flex items-center gap-1 text-[11px] font-label-sm text-outline group-hover:text-primary transition-colors shrink-0">
             <span>Open</span>
