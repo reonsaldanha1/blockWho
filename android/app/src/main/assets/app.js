@@ -2108,83 +2108,49 @@
 
   function renderLockSuitcaseDock() {
     const dockContainer = document.getElementById('dock-allowed-apps');
-    const previewStrip = document.getElementById('lock-suitcase-icons-preview-strip');
     const badge = document.getElementById('lock-suitcase-allowed-badge');
 
     const packed = state.suitcaseApps.filter(a => a.packed);
     if (badge) badge.innerText = `${packed.length} Allowed`;
 
-    // 1. Render Horizontal Icons Preview Strip in Lockdown Mode
-    if (previewStrip) {
-      previewStrip.innerHTML = '';
-      if (packed.length === 0) {
-        previewStrip.innerHTML = `
-          <div class="py-1 text-[11px] text-outline italic">Suitcase empty · All other apps hard locked</div>
-        `;
-      } else {
-        packed.forEach(app => {
-          const item = document.createElement('button');
-          item.className = 'flex flex-col items-center gap-1 group flex-shrink-0 cursor-pointer active:scale-95 transition-all text-center';
-          item.setAttribute('title', `Preview ${app.name}`);
-          const displayName = (app.name || app.pkg || 'App').split(' ')[0];
-          item.innerHTML = `
-            <div class="relative group-hover:scale-105 transition-transform">
-              ${getAppIconHtml(app, 'w-12 h-12', 'text-[22px]')}
-              <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black"></span>
-            </div>
-            <span class="font-label-sm text-[10px] text-primary/90 font-medium truncate max-w-[58px]">${displayName}</span>
-          `;
-          item.addEventListener('click', () => {
-            sound.playChime('click');
-            hapticFeedback(15);
-            openMiniApp(app.id);
-          });
-          previewStrip.appendChild(item);
-        });
-      }
-    }
-
-    // 2. Render Allowed App Cards Grid Below
     if (dockContainer) {
       dockContainer.innerHTML = '';
       if (packed.length === 0) {
         dockContainer.className = 'w-full';
         dockContainer.innerHTML = `
-          <div class="w-full py-6 px-4 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center space-y-1">
-            <span class="material-symbols-outlined text-outline text-[24px]">luggage</span>
-            <div class="font-label-md text-xs font-semibold text-primary">Suitcase is Empty</div>
-            <div class="font-body-sm text-[11px] text-outline">Pack essential tools in the Suitcase tab before starting a lockdown sprint.</div>
+          <div class="w-full py-4 px-3 rounded-xl border border-dashed border-white/10 bg-surface-container-lowest text-center">
+            <div class="font-label-md text-xs font-semibold text-outline">No Allowed Apps in Suitcase</div>
+            <div class="font-body-sm text-[11px] text-outline/70 mt-0.5">All applications are strictly locked during this focus cycle.</div>
           </div>
         `;
         return;
       }
 
-      dockContainer.className = 'grid grid-cols-3 gap-2.5';
+      // Distraction-Free Typographic List: Display ONLY the names of the apps without icons
+      dockContainer.className = 'flex flex-col gap-1.5 w-full';
       packed.forEach(app => {
-        const card = document.createElement('div');
-        card.className = 'flex flex-col items-center justify-between p-3 rounded-xl bg-surface-container-high hover:bg-surface-variant transition-all border border-white/5 shadow-sm group';
-        const displayName = (app.name || app.pkg || 'App').split(' ')[0];
+        const row = document.createElement('button');
+        row.className = 'w-full py-2.5 px-3.5 rounded-xl bg-surface-container-high/70 hover:bg-surface-container-highest border border-white/5 flex items-center justify-between text-left transition-all active:scale-[0.99] cursor-pointer group shadow-sm';
+        const fullName = app.name || app.pkg || 'Application';
         
-        card.innerHTML = `
-          <div class="w-full flex flex-col items-center cursor-pointer app-click-target">
-            <div class="group-hover:scale-105 transition-transform mb-2">
-              ${getAppIconHtml(app, 'w-11 h-11', 'text-[22px]')}
-            </div>
-            <span class="font-label-md text-xs text-primary font-semibold tracking-wide truncate max-w-[85px] text-center">${displayName}</span>
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 truncate pr-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-primary/40 group-hover:bg-primary transition-colors shrink-0"></span>
+            <span class="font-label-md text-xs font-semibold text-primary/90 tracking-wide truncate">${fullName}</span>
           </div>
-          <button class="w-full mt-2 py-1 px-2 rounded-full bg-surface-container-highest hover:bg-primary hover:text-black text-outline hover:font-bold text-[10px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer btn-open-preview">
-            <span class="material-symbols-outlined text-[11px]">visibility</span>
-            <span>Preview</span>
-          </button>
+          <div class="flex items-center gap-1 text-[11px] font-label-sm text-outline group-hover:text-primary transition-colors shrink-0">
+            <span>Open</span>
+            <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+          </div>
         `;
 
-        card.querySelector('.app-click-target').addEventListener('click', () => openMiniApp(app.id));
-        card.querySelector('.btn-open-preview').addEventListener('click', (e) => {
-          e.stopPropagation();
+        row.addEventListener('click', () => {
+          sound.playChime('click');
+          hapticFeedback(15);
           openMiniApp(app.id);
         });
 
-        dockContainer.appendChild(card);
+        dockContainer.appendChild(row);
       });
     }
   }
