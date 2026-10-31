@@ -1364,7 +1364,7 @@
     }
     if (headerStatusText) {
       headerStatusText.className = 'font-label-sm text-label-sm uppercase text-on-surface-variant';
-      headerStatusText.innerText = 'READY';
+      headerStatusText.innerText = 'FOCUS';
     }
 
     updateThemeAtmosphere(state.selectedMode, false);
@@ -3313,21 +3313,13 @@
     }
   };
 
-  // Accessibility service live status in header
+  // Live status in header
   window.refreshAccessibilityStatus = function() {
-    const isAndroid = !!window.AndroidBridge;
-    const accessGranted = isAndroid && typeof window.AndroidBridge.hasAccessibilityPermission === 'function'
-      ? window.AndroidBridge.hasAccessibilityPermission() : false;
     const headerStatusDot = document.getElementById('header-status-dot');
     const headerStatusText = document.getElementById('header-status-text');
     if (headerStatusDot && headerStatusText && !state.isLocked) {
-      if (accessGranted) {
-        headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-primary animate-pulse';
-        headerStatusText.innerText = 'READY';
-      } else {
-        headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
-        headerStatusText.innerText = 'SETUP NEEDED';
-      }
+      headerStatusDot.className = 'w-1.5 h-1.5 rounded-full bg-primary animate-pulse';
+      headerStatusText.innerText = 'FOCUS';
     }
   };
 
