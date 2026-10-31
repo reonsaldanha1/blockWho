@@ -77,6 +77,163 @@
         box-shadow: 0 0 60px rgba(0, 0, 0, 0.85);
       }
     }
+
+    /* Futuristic Stepper & Dial Animations */
+    @keyframes cyberShockwave {
+      0% {
+        transform: scale(0.7);
+        opacity: 0.9;
+        box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.8);
+      }
+      50% {
+        opacity: 0.5;
+      }
+      100% {
+        transform: scale(2.4);
+        opacity: 0;
+        box-shadow: 0 0 25px 8px rgba(0, 229, 255, 0);
+      }
+    }
+
+    @keyframes cyberShockwaveMinus {
+      0% {
+        transform: scale(0.7);
+        opacity: 0.9;
+        box-shadow: 0 0 0 0 rgba(255, 138, 128, 0.8);
+      }
+      50% {
+        opacity: 0.5;
+      }
+      100% {
+        transform: scale(2.4);
+        opacity: 0;
+        box-shadow: 0 0 25px 8px rgba(255, 138, 128, 0);
+      }
+    }
+
+    @keyframes floatHoloDeltaPlus {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, 0) scale(0.6);
+        filter: drop-shadow(0 0 3px #00e5ff);
+      }
+      20% {
+        opacity: 1;
+        transform: translate(-50%, -14px) scale(1.15);
+        filter: drop-shadow(0 0 10px #00e5ff);
+      }
+      80% {
+        opacity: 0.9;
+        transform: translate(-50%, -28px) scale(1.05);
+        filter: drop-shadow(0 0 14px #00e5ff);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -44px) scale(0.85);
+        filter: drop-shadow(0 0 20px #00e5ff);
+      }
+    }
+
+    @keyframes floatHoloDeltaMinus {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, 0) scale(0.6);
+        filter: drop-shadow(0 0 3px #ff8a80);
+      }
+      20% {
+        opacity: 1;
+        transform: translate(-50%, -14px) scale(1.15);
+        filter: drop-shadow(0 0 10px #ff8a80);
+      }
+      80% {
+        opacity: 0.9;
+        transform: translate(-50%, -28px) scale(1.05);
+        filter: drop-shadow(0 0 14px #ff8a80);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -44px) scale(0.85);
+        filter: drop-shadow(0 0 20px #ff8a80);
+      }
+    }
+
+    @keyframes cyberTimePulse {
+      0% {
+        transform: scale(1);
+        text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+      }
+      30% {
+        transform: scale(1.09);
+        text-shadow: 0 0 25px rgba(255, 255, 255, 0.95), 0 0 45px rgba(0, 229, 255, 0.8);
+        color: #ffffff;
+      }
+      100% {
+        transform: scale(1);
+        text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+      }
+    }
+
+    @keyframes arcLaserSurge {
+      0% {
+        filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+      }
+      35% {
+        filter: drop-shadow(0 0 16px rgba(0, 229, 255, 0.95)) drop-shadow(0 0 28px rgba(255, 255, 255, 0.8));
+      }
+      100% {
+        filter: drop-shadow(0 0 0px transparent);
+      }
+    }
+
+    .holo-particle-plus {
+      position: absolute;
+      pointer-events: none;
+      z-index: 40;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #00e5ff;
+      animation: floatHoloDeltaPlus 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      white-space: nowrap;
+    }
+
+    .holo-particle-minus {
+      position: absolute;
+      pointer-events: none;
+      z-index: 40;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #ff8a80;
+      animation: floatHoloDeltaMinus 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      white-space: nowrap;
+    }
+
+    .shockwave-ring {
+      position: absolute;
+      inset: -4px;
+      border-radius: 9999px;
+      border: 2px solid #00e5ff;
+      pointer-events: none;
+      animation: cyberShockwave 0.55s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    }
+
+    .shockwave-ring-minus {
+      position: absolute;
+      inset: -4px;
+      border-radius: 9999px;
+      border: 2px solid #ff8a80;
+      pointer-events: none;
+      animation: cyberShockwaveMinus 0.55s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    }
+
+    .anim-cyber-pulse {
+      animation: cyberTimePulse 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .anim-arc-surge {
+      animation: arcLaserSurge 0.45s ease-out forwards;
+    }
   </style>
 
   <!-- Tailwind CSS & Exact blockWho Material 3 Design Tokens -->
@@ -240,9 +397,12 @@
           </div>
 
           <!-- THE SIGNATURE ROTARY WHEEL CONTAINER -->
-          <div class="relative w-full aspect-square max-w-[340px] mx-auto flex items-center justify-center select-none">
+          <div class="relative w-full aspect-square max-w-[340px] mx-auto flex items-center justify-center select-none" id="rotary-container">
             <!-- Background atmospheric glow -->
             <div class="absolute inset-4 rounded-full bg-surface-container-high/40 blur-2xl pointer-events-none"></div>
+
+            <!-- Ephemeral Particles Container -->
+            <div class="absolute inset-0 pointer-events-none overflow-visible z-30" id="stepper-particles-container"></div>
 
             <!-- Interactive SVG Rotary Dial -->
             <svg class="w-full h-full transform -rotate-90 cursor-pointer overflow-visible" id="timer-dial" viewBox="0 0 280 280">
@@ -265,26 +425,32 @@
               <circle class="text-background transition-all duration-500 ease-out" cx="236.99" cy="196" fill="currentColor" id="dial-knob-core" r="3"></circle>
             </svg>
 
-            <!-- Dial Core Center Readout -->
-            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span class="font-label-sm text-label-sm text-outline tracking-widest uppercase mb-1 flex items-center gap-1">
-                <span class="material-symbols-outlined text-[13px] text-outline">hourglass_empty</span>
-                TARGET LOCK
-              </span>
-              <span class="font-display-mobile text-display-mobile tracking-tighter text-primary font-bold tabular-nums" id="display-duration">01:00</span>
-              <span class="font-label-md text-label-md text-on-surface-variant mt-1 px-2.5 py-0.5 rounded-full bg-surface-container" id="display-end-time">UNTIL 08:56 PM</span>
+            <!-- Dial Core Center Readout (Interactive: Tap to set custom time) -->
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
+              <button id="btn-custom-time-center" class="pointer-events-auto flex flex-col items-center group cursor-pointer focus:outline-none transition-transform active:scale-95 px-3 py-1.5 rounded-2xl hover:bg-white/[0.04]" title="Tap to set custom lock duration">
+                <span class="font-label-sm text-label-sm text-outline tracking-widest uppercase mb-0.5 flex items-center gap-1 group-hover:text-primary transition-colors">
+                  <span class="material-symbols-outlined text-[13px] text-outline group-hover:text-primary transition-colors">hourglass_empty</span>
+                  <span>TARGET LOCK</span>
+                  <span class="material-symbols-outlined text-[12px] text-primary/60 group-hover:text-primary opacity-60 group-hover:opacity-100 transition-opacity">edit</span>
+                </span>
+                <span class="font-display-mobile text-display-mobile tracking-tighter text-primary font-bold tabular-nums transition-all" id="display-duration">01:00</span>
+                <span class="font-label-md text-label-md text-on-surface-variant mt-1 px-2.5 py-0.5 rounded-full bg-surface-container group-hover:bg-surface-container-high transition-colors" id="display-end-time">UNTIL 08:56 PM</span>
+                <span class="text-[9px] font-label-sm text-outline/50 group-hover:text-primary/80 mt-1 transition-colors flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[11px]">tune</span> Tap to customize
+                </span>
+              </button>
               <!-- Mode nuance remark -->
-              <span class="font-body-sm text-body-sm text-outline mt-2 text-center max-w-[170px] truncate" id="mode-quote">
+              <span class="font-body-sm text-body-sm text-outline mt-1 text-center max-w-[170px] truncate" id="mode-quote">
                 Digital silence initiated
               </span>
             </div>
 
-            <!-- Quick Micro Steppers -->
-            <button aria-label="Subtract 15 minutes" class="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary flex items-center justify-center transition-transform active:scale-90" id="btn-dial-minus">
-              <span class="material-symbols-outlined text-[18px]">remove</span>
+            <!-- Quick Micro Steppers (Futuristic Cyberpunk Glass Rings) -->
+            <button aria-label="Subtract 15 minutes" class="stepper-cyber-btn absolute left-0.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surface-container-high/90 backdrop-blur-md border border-white/15 text-primary flex items-center justify-center transition-all shadow-[0_0_12px_rgba(0,0,0,0.6)] hover:border-error/60 hover:shadow-[0_0_16px_rgba(255,138,128,0.25)] active:scale-90 cursor-pointer group z-20" id="btn-dial-minus">
+              <span class="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:scale-110">remove</span>
             </button>
-            <button aria-label="Add 15 minutes" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary flex items-center justify-center transition-transform active:scale-90" id="btn-dial-plus">
-              <span class="material-symbols-outlined text-[18px]">add</span>
+            <button aria-label="Add 15 minutes" class="stepper-cyber-btn absolute right-0.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surface-container-high/90 backdrop-blur-md border border-white/15 text-primary flex items-center justify-center transition-all shadow-[0_0_12px_rgba(0,0,0,0.6)] hover:border-primary/60 hover:shadow-[0_0_16px_rgba(0,229,255,0.25)] active:scale-90 cursor-pointer group z-20" id="btn-dial-plus">
+              <span class="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:scale-110">add</span>
             </button>
           </div>
 
@@ -297,6 +463,11 @@
             <button class="preset-pill px-3 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant hover:text-primary font-label-sm text-label-sm uppercase transition-colors shrink-0" data-mins="90">1.5h</button>
             <button class="preset-pill px-3 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant hover:text-primary font-label-sm text-label-sm uppercase transition-colors shrink-0" data-mins="120">2h</button>
             <button class="preset-pill px-3 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant hover:text-primary font-label-sm text-label-sm uppercase transition-colors shrink-0" data-mins="180">3h</button>
+            <!-- Custom Time Pill -->
+            <button id="btn-open-custom-time" class="preset-pill-custom px-3 py-1.5 rounded-full bg-surface-container-high hover:bg-surface-variant text-primary border border-white/10 font-label-sm text-label-sm uppercase transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-sm active:scale-95" title="Set exact custom hours and minutes">
+              <span class="material-symbols-outlined text-[13px] text-primary">tune</span>
+              <span>Custom</span>
+            </button>
           </div>
 
           <!-- CARDS: QUICK PREP & SAFETY CONTROLS (Bento Pairing) -->
@@ -647,6 +818,104 @@
   </div><!-- End desktop-wrapper -->
 
   <!-- ==================== MODAL OVERLAYS ==================== -->
+  <!-- 0. Custom Lock Duration Modal -->
+  <div class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4" id="modal-custom-time">
+    <div class="w-full max-w-sm rounded-2xl bg-surface-container-low border border-white/10 p-5 flex flex-col space-y-4 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <!-- Top Cyber Neon Accent Line -->
+      <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/70 to-transparent"></div>
+
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined text-[20px]">schedule</span>
+          </div>
+          <div>
+            <h3 class="font-headline-md text-base text-primary font-bold tracking-tight">Set Custom Duration</h3>
+            <p class="font-body-sm text-[11px] text-outline">Precise hours & minutes for lockdown</p>
+          </div>
+        </div>
+        <button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-outline hover:text-white transition-all cursor-pointer" id="btn-close-custom-time">
+          ✕
+        </button>
+      </div>
+
+      <!-- Dual Segment Neon Time Stepper / Inputs -->
+      <div class="p-4 rounded-xl bg-surface-container-lowest border border-white/5 flex flex-col items-center space-y-3">
+        <div class="flex items-center justify-center gap-3">
+          <!-- Hours Segment -->
+          <div class="flex flex-col items-center">
+            <button class="w-12 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary flex items-center justify-center active:scale-90 transition-transform cursor-pointer" id="custom-h-up">
+              <span class="material-symbols-outlined text-[20px]">keyboard_arrow_up</span>
+            </button>
+            <div class="my-1.5 flex flex-col items-center">
+              <input type="number" id="custom-input-hours" min="0" max="12" value="1" class="w-16 h-14 bg-surface-container-high rounded-xl text-center text-2xl font-bold font-label-md text-primary border border-white/10 focus:border-primary focus:outline-none tabular-nums shadow-inner">
+              <span class="text-[10px] font-label-sm uppercase tracking-wider text-outline mt-1">Hours</span>
+            </div>
+            <button class="w-12 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary flex items-center justify-center active:scale-90 transition-transform cursor-pointer" id="custom-h-down">
+              <span class="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+            </button>
+          </div>
+
+          <!-- Glowing Colon Separator -->
+          <div class="text-3xl font-bold text-primary font-label-md pb-6 select-none animate-pulse">:</div>
+
+          <!-- Minutes Segment -->
+          <div class="flex flex-col items-center">
+            <button class="w-12 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary flex items-center justify-center active:scale-90 transition-transform cursor-pointer" id="custom-m-up">
+              <span class="material-symbols-outlined text-[20px]">keyboard_arrow_up</span>
+            </button>
+            <div class="my-1.5 flex flex-col items-center">
+              <input type="number" id="custom-input-mins" min="0" max="59" step="5" value="0" class="w-16 h-14 bg-surface-container-high rounded-xl text-center text-2xl font-bold font-label-md text-primary border border-white/10 focus:border-primary focus:outline-none tabular-nums shadow-inner">
+              <span class="text-[10px] font-label-sm uppercase tracking-wider text-outline mt-1">Minutes</span>
+            </div>
+            <button class="w-12 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary flex items-center justify-center active:scale-90 transition-transform cursor-pointer" id="custom-m-down">
+              <span class="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Calculation Summary Banner -->
+        <div class="w-full py-2 px-3 rounded-lg bg-surface-container flex items-center justify-between text-xs">
+          <span class="text-outline font-label-sm text-[11px]" id="custom-total-summary">Total: 60 mins</span>
+          <span class="text-primary font-label-sm text-[11px] font-semibold" id="custom-calculated-end">Ends ~08:00 PM</span>
+        </div>
+
+        <!-- 3-Hour Tower Badge Hint -->
+        <div class="w-full py-1.5 px-3 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5 transition-colors" id="custom-tower-hint">
+          <span class="material-symbols-outlined text-[14px]">apartment</span>
+          <span id="custom-tower-hint-text">Minimum 3h required to build a Tower floor</span>
+        </div>
+      </div>
+
+      <!-- Quick Presets Grid -->
+      <div>
+        <div class="text-[10px] font-label-sm uppercase tracking-wider text-outline mb-1.5">Direct Presets</div>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="0" data-mins="20">20m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="0" data-mins="30">30m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="0" data-mins="50">50m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="1" data-mins="15">1h 15m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="2" data-mins="0">2h 00m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="2" data-mins="30">2h 30m</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-primary font-bold border border-primary/30 transition-all active:scale-95 cursor-pointer text-center" data-hours="3" data-mins="0">3h (Tower)</button>
+          <button class="custom-chip py-1.5 px-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-label-sm text-on-surface hover:text-primary transition-all active:scale-95 cursor-pointer text-center" data-hours="4" data-mins="0">4h 00m</button>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center justify-between gap-2.5 pt-2 border-t border-white/10">
+        <button class="w-1/3 py-2.5 rounded-full bg-surface-container text-outline hover:text-white font-label-sm text-xs uppercase tracking-wider transition-all cursor-pointer" id="btn-cancel-custom-time">
+          Cancel
+        </button>
+        <button class="w-2/3 py-2.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)] flex items-center justify-center gap-1.5 cursor-pointer" id="btn-apply-custom-time">
+          <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          <span>Set Duration</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- 7. Add App to Suitcase Modal -->
   <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4" id="modal-add-suitcase-app">

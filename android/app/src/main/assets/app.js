@@ -291,6 +291,42 @@
           gain.connect(this.ctx.destination);
           osc.start();
           osc.stop(t + 0.05);
+        } else if (type === 'futuristic-plus') {
+          // Ascending dual-tone futuristic laser sweep
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(540, t);
+          osc.frequency.exponentialRampToValueAtTime(1180, t + 0.12);
+          gain.gain.setValueAtTime(0.24, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(t + 0.18);
+
+          try {
+            const osc2 = this.ctx.createOscillator();
+            const gain2 = this.ctx.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1080, t);
+            osc2.frequency.exponentialRampToValueAtTime(1620, t + 0.08);
+            gain2.gain.setValueAtTime(0.1, t);
+            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc2.connect(gain2);
+            gain2.connect(this.ctx.destination);
+            osc2.start();
+            osc2.stop(t + 0.12);
+          } catch (e2) {}
+        } else if (type === 'futuristic-minus') {
+          // Descending resonant power dampening blip
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, t);
+          osc.frequency.exponentialRampToValueAtTime(420, t + 0.12);
+          gain.gain.setValueAtTime(0.22, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(t + 0.18);
         }
       } catch (e) {
         console.warn('Audio chime suppressed:', e);
@@ -424,10 +460,12 @@
     const fractionEl = document.getElementById('focus-suitcase-fraction');
     if (fractionEl) fractionEl.innerText = `${packedCount}/${totalApps}`;
 
-    // Update Preset Pills Highlight
+    // Update Preset Pills Highlight & Custom Pill State
+    let isPresetMatched = false;
     document.querySelectorAll('.preset-pill').forEach(btn => {
       const pMins = parseInt(btn.getAttribute('data-mins'), 10);
       if (pMins === mins) {
+        isPresetMatched = true;
         btn.classList.add('bg-primary', 'text-on-primary', 'font-semibold');
         btn.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
       } else {
@@ -435,18 +473,92 @@
         btn.classList.add('bg-surface-container-low', 'text-on-surface-variant');
       }
     });
+
+    const customPill = document.getElementById('btn-open-custom-time');
+    if (customPill) {
+      if (!isPresetMatched) {
+        customPill.classList.add('bg-primary', 'text-on-primary', 'font-semibold', 'border-primary');
+        customPill.classList.remove('bg-surface-container-high', 'text-primary', 'border-white/10');
+      } else {
+        customPill.classList.remove('bg-primary', 'text-on-primary', 'font-semibold', 'border-primary');
+        customPill.classList.add('bg-surface-container-high', 'text-primary', 'border-white/10');
+      }
+    }
   }
 
-  function setTime(mins) {
+  function setTime(mins, playSound = true) {
     state.currentMinutes = Math.min(720, Math.max(5, mins));
     saveState();
     updateTimerInterface();
-    sound.playChime('click');
-    hapticFeedback(15);
+    if (playSound) {
+      sound.playChime('click');
+      hapticFeedback(15);
+    }
   }
 
-  function adjustTime(deltaMins) {
-    setTime(state.currentMinutes + deltaMins);
+  function triggerFuturisticStepperAnimation(deltaMins, btnEl) {
+    const isPlus = deltaMins > 0;
+    
+    // 1. Shockwave Ripple ring on button
+    if (btnEl) {
+      const ring = document.createElement('div');
+      ring.className = isPlus ? 'shockwave-ring' : 'shockwave-ring-minus';
+      btnEl.appendChild(ring);
+      setTimeout(() => ring.remove(), 600);
+
+      // Icon micro-rotation / kinetic bounce
+      const icon = btnEl.querySelector('.material-symbols-outlined');
+      if (icon) {
+        icon.style.transform = isPlus ? 'rotate(90deg) scale(1.2)' : 'scale(0.8)';
+        setTimeout(() => { icon.style.transform = ''; }, 220);
+      }
+    }
+
+    // 2. Holographic Floating Delta Particle (+15m / -15m)
+    const particlesContainer = document.getElementById('stepper-particles-container');
+    const rotaryContainer = document.getElementById('rotary-container');
+    if (particlesContainer && btnEl && rotaryContainer) {
+      const btnRect = btnEl.getBoundingClientRect();
+      const parentRect = rotaryContainer.getBoundingClientRect();
+
+      const particle = document.createElement('div');
+      particle.className = isPlus ? 'holo-particle-plus' : 'holo-particle-minus';
+      particle.innerText = isPlus ? `+${deltaMins}m` : `${deltaMins}m`;
+
+      // Position relative to rotary container
+      const x = (btnRect.left + btnRect.width / 2) - parentRect.left;
+      const y = (btnRect.top + btnRect.height / 2) - parentRect.top;
+      particle.style.left = `${x}px`;
+      particle.style.top = `${y}px`;
+
+      particlesContainer.appendChild(particle);
+      setTimeout(() => particle.remove(), 700);
+    }
+
+    // 3. Center Display Glitch / Neon Pulse
+    if (durationDisplay) {
+      durationDisplay.classList.remove('anim-cyber-pulse');
+      void durationDisplay.offsetWidth; // Force reflow
+      durationDisplay.classList.add('anim-cyber-pulse');
+    }
+
+    // 4. Progress Arc Laser Surge
+    if (progressArc) {
+      progressArc.classList.remove('anim-arc-surge');
+      void progressArc.offsetWidth; // Force reflow
+      progressArc.classList.add('anim-arc-surge');
+      setTimeout(() => progressArc.classList.remove('anim-arc-surge'), 500);
+    }
+
+    // 5. Sci-Fi Synthesizer Sound & Haptics
+    sound.playChime(isPlus ? 'futuristic-plus' : 'futuristic-minus');
+    hapticFeedback(18);
+  }
+
+  function adjustTime(deltaMins, btnEl) {
+    const newMins = state.currentMinutes + deltaMins;
+    setTime(newMins, false);
+    triggerFuturisticStepperAnimation(deltaMins, btnEl);
   }
 
   // Dial Drag / Pointer Interaction
@@ -505,11 +617,219 @@
     });
   }
 
-  // Steppers
+  // Steppers with futuristic animation
   const btnMinus = document.getElementById('btn-dial-minus');
   const btnPlus = document.getElementById('btn-dial-plus');
-  if (btnMinus) btnMinus.addEventListener('click', () => adjustTime(-15));
-  if (btnPlus) btnPlus.addEventListener('click', () => adjustTime(15));
+  if (btnMinus) btnMinus.addEventListener('click', () => adjustTime(-15, btnMinus));
+  if (btnPlus) btnPlus.addEventListener('click', () => adjustTime(15, btnPlus));
+
+  // ==========================================
+  // CUSTOM TIME PICKER MODAL CONTROLLER
+  // ==========================================
+  const modalCustomTime = document.getElementById('modal-custom-time');
+  const btnOpenCustomTime = document.getElementById('btn-open-custom-time');
+  const btnCustomTimeCenter = document.getElementById('btn-custom-time-center');
+  const btnCloseCustomTime = document.getElementById('btn-close-custom-time');
+  const btnCancelCustomTime = document.getElementById('btn-cancel-custom-time');
+  const btnApplyCustomTime = document.getElementById('btn-apply-custom-time');
+
+  const inputCustomH = document.getElementById('custom-input-hours');
+  const inputCustomM = document.getElementById('custom-input-mins');
+  const btnHUp = document.getElementById('custom-h-up');
+  const btnHDown = document.getElementById('custom-h-down');
+  const btnMUp = document.getElementById('custom-m-up');
+  const btnMDown = document.getElementById('custom-m-down');
+  const customSummary = document.getElementById('custom-total-summary');
+  const customCalculatedEnd = document.getElementById('custom-calculated-end');
+  const customTowerHint = document.getElementById('custom-tower-hint');
+  const customTowerHintText = document.getElementById('custom-tower-hint-text');
+
+  function openCustomTimeModal() {
+    if (!modalCustomTime) return;
+    const currentMins = state.currentMinutes || 60;
+    const h = Math.floor(currentMins / 60);
+    const m = currentMins % 60;
+
+    if (inputCustomH) inputCustomH.value = h;
+    if (inputCustomM) inputCustomM.value = m;
+
+    updateCustomModalPreview();
+    modalCustomTime.classList.remove('hidden');
+    modalCustomTime.classList.add('flex');
+    sound.playChime('click');
+    hapticFeedback(15);
+  }
+
+  function closeCustomTimeModal() {
+    if (!modalCustomTime) return;
+    modalCustomTime.classList.add('hidden');
+    modalCustomTime.classList.remove('flex');
+  }
+
+  function getCustomModalMinutes() {
+    const h = Math.max(0, parseInt(inputCustomH ? inputCustomH.value : '0', 10) || 0);
+    const m = Math.max(0, parseInt(inputCustomM ? inputCustomM.value : '0', 10) || 0);
+    let total = h * 60 + m;
+    if (total < 5) total = 5;
+    if (total > 720) total = 720; // 12 hours max
+    return total;
+  }
+
+  function updateCustomModalPreview() {
+    const total = getCustomModalMinutes();
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+
+    if (customSummary) {
+      if (h > 0 && m > 0) {
+        customSummary.innerText = `Total: ${h}h ${m}m (${total} mins)`;
+      } else if (h > 0) {
+        customSummary.innerText = `Total: ${h}h (${total} mins)`;
+      } else {
+        customSummary.innerText = `Total: ${m} mins`;
+      }
+    }
+
+    if (customCalculatedEnd) {
+      const targetDate = new Date(Date.now() + total * 60 * 1000);
+      const timeStr = targetDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      customCalculatedEnd.innerText = `Ends ~${timeStr}`;
+    }
+
+    if (customTowerHint && customTowerHintText) {
+      if (total >= 180) {
+        customTowerHint.className = 'w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-400 flex items-center gap-1.5 transition-colors';
+        customTowerHintText.innerText = '★ Qualifies to build Tower floor (3h threshold met)';
+      } else {
+        const remaining = (180 - total) / 60;
+        customTowerHint.className = 'w-full py-1.5 px-3 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-center gap-1.5 transition-colors';
+        customTowerHintText.innerText = `Need ${remaining.toFixed(1)}h more to construct a Tower floor`;
+      }
+    }
+  }
+
+  if (btnOpenCustomTime) btnOpenCustomTime.addEventListener('click', openCustomTimeModal);
+  if (btnCustomTimeCenter) btnCustomTimeCenter.addEventListener('click', openCustomTimeModal);
+  if (btnCloseCustomTime) btnCloseCustomTime.addEventListener('click', closeCustomTimeModal);
+  if (btnCancelCustomTime) btnCancelCustomTime.addEventListener('click', closeCustomTimeModal);
+  if (modalCustomTime) {
+    modalCustomTime.addEventListener('click', (e) => {
+      if (e.target === modalCustomTime) closeCustomTimeModal();
+    });
+  }
+
+  if (btnHUp) {
+    btnHUp.addEventListener('click', () => {
+      if (!inputCustomH) return;
+      let val = (parseInt(inputCustomH.value, 10) || 0) + 1;
+      if (val > 12) val = 12;
+      inputCustomH.value = val;
+      updateCustomModalPreview();
+      sound.playChime('click');
+      hapticFeedback(12);
+    });
+  }
+
+  if (btnHDown) {
+    btnHDown.addEventListener('click', () => {
+      if (!inputCustomH) return;
+      let val = (parseInt(inputCustomH.value, 10) || 0) - 1;
+      if (val < 0) val = 0;
+      inputCustomH.value = val;
+      updateCustomModalPreview();
+      sound.playChime('click');
+      hapticFeedback(12);
+    });
+  }
+
+  if (btnMUp) {
+    btnMUp.addEventListener('click', () => {
+      if (!inputCustomM) return;
+      let val = (parseInt(inputCustomM.value, 10) || 0) + 5;
+      if (val >= 60) {
+        val = 0;
+        if (inputCustomH) {
+          let hVal = (parseInt(inputCustomH.value, 10) || 0) + 1;
+          if (hVal <= 12) inputCustomH.value = hVal;
+        }
+      }
+      inputCustomM.value = val;
+      updateCustomModalPreview();
+      sound.playChime('click');
+      hapticFeedback(12);
+    });
+  }
+
+  if (btnMDown) {
+    btnMDown.addEventListener('click', () => {
+      if (!inputCustomM) return;
+      let val = (parseInt(inputCustomM.value, 10) || 0) - 5;
+      if (val < 0) {
+        val = 55;
+        if (inputCustomH) {
+          let hVal = (parseInt(inputCustomH.value, 10) || 0) - 1;
+          if (hVal >= 0) inputCustomH.value = hVal;
+        }
+      }
+      inputCustomM.value = val;
+      updateCustomModalPreview();
+      sound.playChime('click');
+      hapticFeedback(12);
+    });
+  }
+
+  if (inputCustomH) {
+    inputCustomH.addEventListener('input', updateCustomModalPreview);
+    inputCustomH.addEventListener('change', () => {
+      let val = parseInt(inputCustomH.value, 10) || 0;
+      inputCustomH.value = Math.min(12, Math.max(0, val));
+      updateCustomModalPreview();
+    });
+  }
+
+  if (inputCustomM) {
+    inputCustomM.addEventListener('input', updateCustomModalPreview);
+    inputCustomM.addEventListener('change', () => {
+      let val = parseInt(inputCustomM.value, 10) || 0;
+      inputCustomM.value = Math.min(59, Math.max(0, val));
+      updateCustomModalPreview();
+    });
+  }
+
+  document.querySelectorAll('.custom-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const h = parseInt(chip.getAttribute('data-hours'), 10) || 0;
+      const m = parseInt(chip.getAttribute('data-mins'), 10) || 0;
+      if (inputCustomH) inputCustomH.value = h;
+      if (inputCustomM) inputCustomM.value = m;
+      updateCustomModalPreview();
+      sound.playChime('click');
+      hapticFeedback(15);
+    });
+  });
+
+  if (btnApplyCustomTime) {
+    btnApplyCustomTime.addEventListener('click', () => {
+      const totalMins = getCustomModalMinutes();
+      setTime(totalMins, false);
+      closeCustomTimeModal();
+
+      // Trigger visual confirmation bloom on main duration display
+      if (durationDisplay) {
+        durationDisplay.classList.remove('anim-cyber-pulse');
+        void durationDisplay.offsetWidth;
+        durationDisplay.classList.add('anim-cyber-pulse');
+      }
+      if (progressArc) {
+        progressArc.classList.remove('anim-arc-surge');
+        void progressArc.offsetWidth;
+        progressArc.classList.add('anim-arc-surge');
+        setTimeout(() => progressArc.classList.remove('anim-arc-surge'), 500);
+      }
+      sound.playChime('success');
+      hapticFeedback(30);
+    });
+  }
 
   // Presets
   document.querySelectorAll('.preset-pill').forEach(btn => {
