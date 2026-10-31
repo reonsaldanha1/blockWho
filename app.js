@@ -1279,6 +1279,7 @@
     lockdownBtn.addEventListener('touchstart', startLockdownHold, { passive: false });
     window.addEventListener('mouseup', cancelLockdownHold);
     window.addEventListener('touchend', cancelLockdownHold);
+    window.addEventListener('touchcancel', cancelLockdownHold);
   }
 
   function enterLockoutScreen() {
