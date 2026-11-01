@@ -109,6 +109,7 @@
       this.isPlaying = false;
       this.currentSound = 'binaural';
       this.nodes = [];
+      this.timers = [];
       this.volume = 0.5;
     }
 
@@ -167,31 +168,166 @@
         oscR.start();
         this.nodes.push(oscL, oscR, gainL, gainR, merger);
 
-      } else if (this.currentSound === 'brown') {
-        // Deep Cabin Brown Noise
-        const bufferSize = 2 * this.ctx.sampleRate;
-        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        let lastOut = 0.0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          output[i] = (lastOut + 0.02 * white) / 1.02;
-          lastOut = output[i];
-          output[i] *= 3.5;
-        }
+      } else if (this.currentSound === 'alpha_flow') {
+        // 10Hz Alpha Waves (Cognitive Flow & Deep Study Reading)
+        const merger = this.ctx.createChannelMerger(2);
 
-        const source = this.ctx.createBufferSource();
-        source.buffer = noiseBuffer;
-        source.loop = true;
+        const oscL = this.ctx.createOscillator();
+        oscL.type = 'sine';
+        oscL.frequency.setValueAtTime(210, t);
+        const gainL = this.ctx.createGain();
+        gainL.gain.setValueAtTime(0.22, t);
+        oscL.connect(gainL);
+        gainL.connect(merger, 0, 0);
 
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(320, t);
+        const oscR = this.ctx.createOscillator();
+        oscR.type = 'sine';
+        oscR.frequency.setValueAtTime(220, t);
+        const gainR = this.ctx.createGain();
+        gainR.gain.setValueAtTime(0.22, t);
+        oscR.connect(gainR);
+        gainR.connect(merger, 0, 1);
 
-        source.connect(filter);
-        filter.connect(this.masterGain);
-        source.start();
-        this.nodes.push(source, filter);
+        // Harmonic 5th overtone (315Hz / 325Hz)
+        const harmL = this.ctx.createOscillator();
+        harmL.type = 'triangle';
+        harmL.frequency.setValueAtTime(315, t);
+        const harmGainL = this.ctx.createGain();
+        harmGainL.gain.setValueAtTime(0.06, t);
+        harmL.connect(harmGainL);
+        harmGainL.connect(merger, 0, 0);
+
+        const harmR = this.ctx.createOscillator();
+        harmR.type = 'triangle';
+        harmR.frequency.setValueAtTime(325, t);
+        const harmGainR = this.ctx.createGain();
+        harmGainR.gain.setValueAtTime(0.06, t);
+        harmR.connect(harmGainR);
+        harmGainR.connect(merger, 0, 1);
+
+        // Warm sub drone at 105Hz
+        const subOsc = this.ctx.createOscillator();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(105, t);
+        const subGain = this.ctx.createGain();
+        subGain.gain.setValueAtTime(0.12, t);
+        subOsc.connect(subGain);
+        subGain.connect(this.masterGain);
+
+        merger.connect(this.masterGain);
+        oscL.start();
+        oscR.start();
+        harmL.start();
+        harmR.start();
+        subOsc.start();
+        this.nodes.push(oscL, oscR, gainL, gainR, harmL, harmR, harmGainL, harmGainR, subOsc, subGain, merger);
+
+      } else if (this.currentSound === 'theta_calm') {
+        // 6Hz Theta Waves (Deep Study & Meditation)
+        // 136.1Hz Earth / Om resonance + 142.1Hz = 6Hz Theta difference
+        const merger = this.ctx.createChannelMerger(2);
+
+        const oscL = this.ctx.createOscillator();
+        oscL.type = 'sine';
+        oscL.frequency.setValueAtTime(136.1, t);
+        const gainL = this.ctx.createGain();
+        gainL.gain.setValueAtTime(0.25, t);
+        oscL.connect(gainL);
+        gainL.connect(merger, 0, 0);
+
+        const oscR = this.ctx.createOscillator();
+        oscR.type = 'sine';
+        oscR.frequency.setValueAtTime(142.1, t);
+        const gainR = this.ctx.createGain();
+        gainR.gain.setValueAtTime(0.25, t);
+        oscR.connect(gainR);
+        gainR.connect(merger, 0, 1);
+
+        // Octave harmonic (272.2Hz)
+        const octOsc = this.ctx.createOscillator();
+        octOsc.type = 'sine';
+        octOsc.frequency.setValueAtTime(272.2, t);
+        const octGain = this.ctx.createGain();
+        octGain.gain.setValueAtTime(0.06, t);
+        octOsc.connect(octGain);
+        octGain.connect(this.masterGain);
+
+        merger.connect(this.masterGain);
+        oscL.start();
+        oscR.start();
+        octOsc.start();
+        this.nodes.push(oscL, oscR, gainL, gainR, octOsc, octGain, merger);
+
+      } else if (this.currentSound === 'lofi_ambient') {
+        // Lo-Fi Ambient Study Pad: Soft generative analog chords
+        // Chords cycling: Dmaj7 -> Gmaj7 -> Bm7 -> Asus4/9
+        const chords = [
+          [146.83, 185.00, 220.00, 277.18], // D3, F#3, A3, C#4 (Dmaj7)
+          [196.00, 246.94, 293.66, 369.99], // G3, B3, D4, F#4 (Gmaj7)
+          [123.47, 146.83, 185.00, 220.00], // B2, D3, F#3, A3 (Bm7)
+          [110.00, 164.81, 196.00, 246.94]  // A2, E3, G3, B3 (Asus4/9)
+        ];
+
+        const chordGain = this.ctx.createGain();
+        chordGain.gain.setValueAtTime(0.22, t);
+
+        const padFilter = this.ctx.createBiquadFilter();
+        padFilter.type = 'lowpass';
+        padFilter.frequency.setValueAtTime(580, t);
+        padFilter.Q.setValueAtTime(1.5, t);
+
+        // Sub subtle warmth oscillator
+        const subOsc = this.ctx.createOscillator();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(73.42, t); // D2
+        const subGain = this.ctx.createGain();
+        subGain.gain.setValueAtTime(0.12, t);
+        subOsc.connect(subGain);
+        subGain.connect(padFilter);
+        subOsc.start();
+        this.nodes.push(subOsc, subGain);
+
+        let activeOscs = [];
+        let chordIndex = 0;
+
+        const playChord = (freqs) => {
+          if (!this.isPlaying || this.currentSound !== 'lofi_ambient') return;
+          const now = this.ctx.currentTime;
+          
+          activeOscs.forEach(o => {
+            try {
+              o.gain.gain.setValueAtTime(o.gain.gain.value, now);
+              o.gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+              o.osc.stop(now + 2.6);
+            } catch (e) {}
+          });
+          activeOscs = [];
+
+          freqs.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+            osc.frequency.setValueAtTime(freq + (Math.random() * 0.4 - 0.2), now);
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, now);
+            g.gain.exponentialRampToValueAtTime(0.07, now + 2.0);
+            osc.connect(g);
+            g.connect(padFilter);
+            osc.start(now);
+            activeOscs.push({ osc, gain: g });
+            this.nodes.push(osc, g);
+          });
+        };
+
+        padFilter.connect(chordGain);
+        chordGain.connect(this.masterGain);
+        this.nodes.push(padFilter, chordGain);
+
+        playChord(chords[0]);
+        const chordTimer = setInterval(() => {
+          chordIndex = (chordIndex + 1) % chords.length;
+          playChord(chords[chordIndex]);
+        }, 7500);
+        this.timers.push(chordTimer);
 
       } else if (this.currentSound === 'rain') {
         // Gentle Rain Noise
@@ -221,6 +357,182 @@
         source.start();
         this.nodes.push(source, filter, subFilter);
 
+      } else if (this.currentSound === 'thunder_rain') {
+        // Thunderstorm: Heavy Drenching Rain + Distant Low Rolling Thunder
+        const bufferSize = 2 * this.ctx.sampleRate;
+        const rainBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const rainOut = rainBuf.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          rainOut[i] = (Math.random() * 2 - 1) * 0.7;
+        }
+        const rainSrc = this.ctx.createBufferSource();
+        rainSrc.buffer = rainBuf;
+        rainSrc.loop = true;
+        const rainFilter = this.ctx.createBiquadFilter();
+        rainFilter.type = 'lowpass';
+        rainFilter.frequency.setValueAtTime(2800, t);
+        const rainGain = this.ctx.createGain();
+        rainGain.gain.setValueAtTime(0.35, t);
+        rainSrc.connect(rainFilter);
+        rainFilter.connect(rainGain);
+        rainGain.connect(this.masterGain);
+        rainSrc.start();
+        this.nodes.push(rainSrc, rainFilter, rainGain);
+
+        // Rolling thunder layer
+        const thunderBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const thundOut = thunderBuf.getChannelData(0);
+        let tLast = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const w = Math.random() * 2 - 1;
+          thundOut[i] = (tLast + 0.02 * w) / 1.02;
+          tLast = thundOut[i];
+          thundOut[i] *= 4.0;
+        }
+        const thundSrc = this.ctx.createBufferSource();
+        thundSrc.buffer = thunderBuf;
+        thundSrc.loop = true;
+        const thundFilter = this.ctx.createBiquadFilter();
+        thundFilter.type = 'lowpass';
+        thundFilter.frequency.setValueAtTime(140, t);
+        const thundGain = this.ctx.createGain();
+        thundGain.gain.setValueAtTime(0.08, t);
+
+        const rumbleOsc = this.ctx.createOscillator();
+        rumbleOsc.type = 'sine';
+        rumbleOsc.frequency.setValueAtTime(45, t);
+        const rumbleGain = this.ctx.createGain();
+        rumbleGain.gain.setValueAtTime(0.05, t);
+        rumbleOsc.connect(rumbleGain);
+        rumbleGain.connect(this.masterGain);
+        rumbleOsc.start();
+
+        thundSrc.connect(thundFilter);
+        thundFilter.connect(thundGain);
+        thundGain.connect(this.masterGain);
+        thundSrc.start();
+        this.nodes.push(thundSrc, thundFilter, thundGain, rumbleOsc, rumbleGain);
+
+        // Thunder rolls
+        const triggerThunder = () => {
+          if (!this.isPlaying || this.currentSound !== 'thunder_rain') return;
+          const now = this.ctx.currentTime;
+          const peak = 0.35 + Math.random() * 0.25;
+          const dur = 3 + Math.random() * 2.5;
+          try {
+            thundGain.gain.setValueAtTime(thundGain.gain.value, now);
+            thundGain.gain.exponentialRampToValueAtTime(peak, now + dur * 0.3);
+            thundGain.gain.exponentialRampToValueAtTime(0.04, now + dur);
+            rumbleGain.gain.setValueAtTime(rumbleGain.gain.value, now);
+            rumbleGain.gain.exponentialRampToValueAtTime(0.18, now + dur * 0.3);
+            rumbleGain.gain.exponentialRampToValueAtTime(0.03, now + dur);
+          } catch (e) {}
+        };
+        triggerThunder();
+        const thunderTimer = setInterval(triggerThunder, 11000);
+        this.timers.push(thunderTimer);
+
+      } else if (this.currentSound === 'window_rain') {
+        // Window Rain: Droplets hitting glass with soft background ambience
+        const bufferSize = 2 * this.ctx.sampleRate;
+        const windowBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const winOut = windowBuf.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          const isDrop = Math.random() < 0.0008;
+          const dropAmp = isDrop ? (Math.random() * 1.5 - 0.75) : 0;
+          winOut[i] = (Math.random() * 2 - 1) * 0.25 + dropAmp;
+        }
+        const winSrc = this.ctx.createBufferSource();
+        winSrc.buffer = windowBuf;
+        winSrc.loop = true;
+        const winFilter1 = this.ctx.createBiquadFilter();
+        winFilter1.type = 'bandpass';
+        winFilter1.frequency.setValueAtTime(1800, t);
+        winFilter1.Q.setValueAtTime(2.0, t);
+        const winFilter2 = this.ctx.createBiquadFilter();
+        winFilter2.type = 'highpass';
+        winFilter2.frequency.setValueAtTime(600, t);
+        const winGain = this.ctx.createGain();
+        winGain.gain.setValueAtTime(0.4, t);
+
+        winSrc.connect(winFilter1);
+        winFilter1.connect(winFilter2);
+        winFilter2.connect(winGain);
+        winGain.connect(this.masterGain);
+        winSrc.start();
+        this.nodes.push(winSrc, winFilter1, winFilter2, winGain);
+
+      } else if (this.currentSound === 'campfire_rain') {
+        // Cozy Rain & Fireplace: Raindrops with hearth crackle
+        const bufferSize = 2 * this.ctx.sampleRate;
+        const rainBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const rOut = rainBuf.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          rOut[i] = (Math.random() * 2 - 1) * 0.3;
+        }
+        const rSrc = this.ctx.createBufferSource();
+        rSrc.buffer = rainBuf;
+        rSrc.loop = true;
+        const rFilt = this.ctx.createBiquadFilter();
+        rFilt.type = 'bandpass';
+        rFilt.frequency.setValueAtTime(1200, t);
+        const rGain = this.ctx.createGain();
+        rGain.gain.setValueAtTime(0.25, t);
+        rSrc.connect(rFilt);
+        rFilt.connect(rGain);
+        rGain.connect(this.masterGain);
+        rSrc.start();
+
+        const fireBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const fOut = fireBuf.getChannelData(0);
+        let fLast = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const w = Math.random() * 2 - 1;
+          const crackle = Math.random() < 0.0006 ? (Math.random() * 2 - 1) * 1.8 : 0;
+          fOut[i] = (fLast + 0.02 * w) / 1.02 * 2.5 + crackle;
+          fLast = (fLast + 0.02 * w) / 1.02;
+        }
+        const fSrc = this.ctx.createBufferSource();
+        fSrc.buffer = fireBuf;
+        fSrc.loop = true;
+        const fFilt = this.ctx.createBiquadFilter();
+        fFilt.type = 'lowpass';
+        fFilt.frequency.setValueAtTime(450, t);
+        const fGain = this.ctx.createGain();
+        fGain.gain.setValueAtTime(0.35, t);
+        fSrc.connect(fFilt);
+        fFilt.connect(fGain);
+        fGain.connect(this.masterGain);
+        fSrc.start();
+
+        this.nodes.push(rSrc, rFilt, rGain, fSrc, fFilt, fGain);
+
+      } else if (this.currentSound === 'brown') {
+        // Deep Cabin Brown Noise
+        const bufferSize = 2 * this.ctx.sampleRate;
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          output[i] = (lastOut + 0.02 * white) / 1.02;
+          lastOut = output[i];
+          output[i] *= 3.5;
+        }
+
+        const source = this.ctx.createBufferSource();
+        source.buffer = noiseBuffer;
+        source.loop = true;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(320, t);
+
+        source.connect(filter);
+        filter.connect(this.masterGain);
+        source.start();
+        this.nodes.push(source, filter);
+
       } else {
         // Pure White Noise
         const bufferSize = 2 * this.ctx.sampleRate;
@@ -246,6 +558,10 @@
     }
 
     stopSoundscape() {
+      if (this.timers) {
+        this.timers.forEach(t => clearInterval(t));
+        this.timers = [];
+      }
       this.nodes.forEach(node => {
         try {
           if (node.stop) node.stop();
@@ -1013,8 +1329,14 @@
     const soundType = sound ? sound.currentSound : 'binaural';
     const soundTypeNames = {
       binaural: '40Hz Gamma',
-      brown: 'Cabin Brown',
+      alpha_flow: '10Hz Alpha',
+      theta_calm: '6Hz Theta',
+      lofi_ambient: 'Lo-Fi Ambient',
       rain: 'Gentle Rain',
+      thunder_rain: 'Thunder & Rain',
+      window_rain: 'Window Rain',
+      campfire_rain: 'Rain & Hearth',
+      brown: 'Cabin Brown',
       white: 'White Noise'
     };
     const currentName = soundTypeNames[soundType] || 'Soundscape';
@@ -2614,29 +2936,88 @@
       if (iconEl) iconEl.innerText = 'music_note';
       const volPercent = Math.round(sound.volume * 100);
       contentEl.innerHTML = `
-        <div class="flex-1 flex flex-col space-y-4">
-          <div class="grid grid-cols-2 gap-2" id="soundscape-types">
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="binaural">
-              40Hz Gamma Beat
-            </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="brown">
-              Cabin Brown Noise
-            </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="rain">
-              Gentle Rain
-            </button>
-            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="white">
-              Pure White Noise
-            </button>
+        <div class="flex-1 flex flex-col space-y-3.5 max-h-[72vh] overflow-y-auto no-scrollbar pr-0.5">
+          <!-- Category 1: Rain & Nature Sounds -->
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-1.5 text-[10px] font-label-sm font-bold uppercase tracking-wider text-cyan-400">
+              <span class="material-symbols-outlined text-[13px]">rainy</span>
+              <span>Rain & Ambient Water</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="rain">
+                <span class="material-symbols-outlined text-[14px]">water_drop</span>
+                <span class="truncate">Gentle Rain</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="thunder_rain">
+                <span class="material-symbols-outlined text-[14px]">thunderstorm</span>
+                <span class="truncate">Thunder & Rain</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="window_rain">
+                <span class="material-symbols-outlined text-[14px]">window</span>
+                <span class="truncate">Window Rain</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="campfire_rain">
+                <span class="material-symbols-outlined text-[14px]">local_fire_department</span>
+                <span class="truncate">Rain & Hearth</span>
+              </button>
+            </div>
           </div>
-          <div>
+
+          <!-- Category 2: Study Music & Binaural -->
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-1.5 text-[10px] font-label-sm font-bold uppercase tracking-wider text-purple-400">
+              <span class="material-symbols-outlined text-[13px]">headphones</span>
+              <span>Study Music & Entrainment</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="lofi_ambient">
+                <span class="material-symbols-outlined text-[14px]">piano</span>
+                <span class="truncate">Lo-Fi Ambient</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="alpha_flow">
+                <span class="material-symbols-outlined text-[14px]">waves</span>
+                <span class="truncate">10Hz Alpha Flow</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="theta_calm">
+                <span class="material-symbols-outlined text-[14px]">self_improvement</span>
+                <span class="truncate">6Hz Theta Calm</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="binaural">
+                <span class="material-symbols-outlined text-[14px]">bolt</span>
+                <span class="truncate">40Hz Gamma Beat</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Category 3: Focus Noise -->
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-1.5 text-[10px] font-label-sm font-bold uppercase tracking-wider text-amber-400">
+              <span class="material-symbols-outlined text-[13px]">graphic_eq</span>
+              <span>Focus Noise</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="brown">
+                <span class="material-symbols-outlined text-[14px]">equalizer</span>
+                <span class="truncate">Cabin Brown</span>
+              </button>
+              <button class="sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer" data-type="white">
+                <span class="material-symbols-outlined text-[14px]">air</span>
+                <span class="truncate">Pure White</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Master Volume Slider -->
+          <div class="pt-1">
             <div class="flex justify-between text-xs text-outline font-label-sm mb-1">
               <span>MASTER VOLUME</span>
               <span id="vol-display">${volPercent}%</span>
             </div>
             <input type="range" min="0" max="100" value="${volPercent}" id="sound-vol-slider" class="w-full accent-white h-1.5 bg-surface-container-highest rounded-lg cursor-pointer">
           </div>
-          <button id="btn-toggle-soundscape" class="w-full py-3 rounded-full bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer">
+
+          <!-- Start / Stop Button -->
+          <button id="btn-toggle-soundscape" class="w-full py-3 rounded-full bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer mt-1">
             <span class="material-symbols-outlined text-[18px]">${sound.isPlaying ? 'stop' : 'play_arrow'}</span>
             <span id="soundscape-btn-label">${sound.isPlaying ? 'Stop Soundscape' : 'Start Soundscape'}</span>
           </button>
@@ -2652,13 +3033,13 @@
 
       chips.forEach(chip => {
         if (chip.getAttribute('data-type') === sound.currentSound) {
-          chip.className = 'sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
+          chip.className = 'sound-chip p-2 rounded-lg bg-white text-black font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer';
         }
         chip.addEventListener('click', () => {
           chips.forEach(c => {
-            c.className = 'sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
+            c.className = 'sound-chip p-2 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer';
           });
-          chip.className = 'sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
+          chip.className = 'sound-chip p-2 rounded-lg bg-white text-black font-label-sm text-[11px] font-semibold text-left flex items-center gap-1.5 transition-all cursor-pointer';
           const type = chip.getAttribute('data-type');
           sound.playChime('click');
           hapticFeedback(15);
