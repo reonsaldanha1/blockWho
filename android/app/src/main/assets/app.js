@@ -137,6 +137,9 @@
       this.stopSoundscape();
       if (soundType) this.currentSound = soundType;
       this.isPlaying = true;
+      if (typeof updateSoundscapeStatusUI === 'function') {
+        updateSoundscapeStatusUI();
+      }
       const t = this.ctx.currentTime;
 
       if (this.currentSound === 'binaural') {
@@ -251,6 +254,9 @@
       });
       this.nodes = [];
       this.isPlaying = false;
+      if (typeof updateSoundscapeStatusUI === 'function') {
+        updateSoundscapeStatusUI();
+      }
     }
 
     playChime(type = 'success') {
@@ -1000,6 +1006,91 @@
     const btn = document.getElementById(`mode-${m}`);
     if (btn) btn.addEventListener('click', () => switchMode(m));
   });
+
+  // Soundscape Status UI Reactive Updater
+  function updateSoundscapeStatusUI() {
+    const isPlaying = sound && sound.isPlaying;
+    const soundType = sound ? sound.currentSound : 'binaural';
+    const soundTypeNames = {
+      binaural: '40Hz Gamma',
+      brown: 'Cabin Brown',
+      rain: 'Gentle Rain',
+      white: 'White Noise'
+    };
+    const currentName = soundTypeNames[soundType] || 'Soundscape';
+
+    // 1. App Header Quick Soundscape Button
+    const headerBtn = document.getElementById('btn-header-soundscape');
+    const headerDot = document.getElementById('header-soundscape-dot');
+    const headerIcon = document.getElementById('header-soundscape-icon');
+    if (headerBtn) {
+      if (isPlaying) {
+        headerBtn.classList.add('border-emerald-400/40', 'bg-emerald-500/20', 'text-emerald-400');
+        if (headerDot) headerDot.classList.remove('hidden');
+        if (headerIcon) headerIcon.classList.add('animate-pulse');
+        headerBtn.title = `Soundscape Active (${currentName}) · Tap to control`;
+      } else {
+        headerBtn.classList.remove('border-emerald-400/40', 'bg-emerald-500/20', 'text-emerald-400');
+        if (headerDot) headerDot.classList.add('hidden');
+        if (headerIcon) headerIcon.classList.remove('animate-pulse');
+        headerBtn.title = 'Focus Soundscape Synthesizer';
+      }
+    }
+
+    // 2. Focus screen Bento Quick Soundscape
+    const quickStatus = document.getElementById('quick-soundscape-status');
+    const quickPill = document.getElementById('quick-soundscape-pill');
+    const quickIconBox = document.getElementById('quick-soundscape-icon-box');
+    if (quickStatus) {
+      quickStatus.innerText = isPlaying ? `Playing: ${currentName}` : 'Binaural & Noise Synth';
+    }
+    if (quickPill) {
+      if (isPlaying) {
+        quickPill.innerText = 'Active';
+        quickPill.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider animate-pulse';
+      } else {
+        quickPill.innerText = 'Play';
+        quickPill.className = 'px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider group-hover:bg-primary group-hover:text-black transition-all';
+      }
+    }
+    if (quickIconBox) {
+      if (isPlaying) {
+        quickIconBox.className = 'w-8 h-8 rounded-xl bg-emerald-950/40 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-sm group-hover:scale-105 transition-transform';
+      } else {
+        quickIconBox.className = 'w-8 h-8 rounded-xl bg-[#181920] border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-sm group-hover:scale-105 transition-transform';
+      }
+    }
+
+    // 3. Suitcase Built-in Soundscape Row (if rendered)
+    const suitcaseSoundBtn = document.querySelector('.btn-open-soundscape-from-suitcase');
+    if (suitcaseSoundBtn) {
+      if (isPlaying) {
+        suitcaseSoundBtn.innerHTML = `<span class="material-symbols-outlined text-[15px] animate-spin">sync</span><span>Playing</span>`;
+        suitcaseSoundBtn.className = 'px-3 py-1.5 rounded-full bg-emerald-400 text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shrink-0 btn-open-soundscape-from-suitcase';
+      } else {
+        suitcaseSoundBtn.innerHTML = `<span class="material-symbols-outlined text-[15px]">play_circle</span><span>Open</span>`;
+        suitcaseSoundBtn.className = 'px-3 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shrink-0 btn-open-soundscape-from-suitcase';
+      }
+    }
+  }
+
+  // Quick Soundscape button on Focus screen
+  const btnQuickSoundscape = document.getElementById('btn-quick-soundscape');
+  if (btnQuickSoundscape) {
+    btnQuickSoundscape.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMiniApp('audio');
+    });
+  }
+
+  // Header Quick Soundscape button
+  const btnHeaderSoundscape = document.getElementById('btn-header-soundscape');
+  if (btnHeaderSoundscape) {
+    btnHeaderSoundscape.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMiniApp('audio');
+    });
+  }
 
   // Pack Suitcase trigger
   const btnPackTrigger = document.getElementById('btn-pack-suitcase-trigger');
@@ -1962,9 +2053,44 @@
       }
     }
 
+    // Section: Built-in System Tools (Focus Soundscape accessible anytime & during lockdown)
+    const builtinSec = document.createElement('div');
+    builtinSec.className = 'space-y-2';
+    builtinSec.innerHTML = `
+      <div class="pt-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider">
+        <span>Built-in Focus Audio</span>
+        <span class="text-[11px] text-primary/80 font-mono">Available Always</span>
+      </div>
+      <div class="p-3.5 rounded-xl bg-surface-container-low border border-cyan-400/20 flex items-center justify-between hover:border-cyan-400/40 transition-all">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-[#181920] border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-sm shrink-0">
+            <span class="material-symbols-outlined text-[22px]">music_note</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-label-md text-primary font-bold text-xs">Focus Soundscape Synthesizer</h4>
+              <span class="px-1.5 py-0.5 rounded-full bg-cyan-400/10 text-cyan-400 border border-cyan-400/30 text-[9px] font-mono font-bold">ACTIVE</span>
+            </div>
+            <p class="font-body-sm text-[11px] text-outline mt-0.5">Procedural 40Hz Gamma beat, Cabin brown noise & rain</p>
+          </div>
+        </div>
+        <button class="px-3 py-1.5 rounded-full bg-primary text-black font-label-sm text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer flex items-center gap-1 shrink-0 btn-open-soundscape-from-suitcase">
+          <span class="material-symbols-outlined text-[15px]">${sound.isPlaying ? 'sync' : 'play_circle'}</span>
+          <span>${sound.isPlaying ? 'Playing' : 'Open'}</span>
+        </button>
+      </div>
+    `;
+    const openSoundBtn = builtinSec.querySelector('.btn-open-soundscape-from-suitcase');
+    if (openSoundBtn) {
+      openSoundBtn.addEventListener('click', () => {
+        openMiniApp('audio');
+      });
+    }
+    container.appendChild(builtinSec);
+
     const customApps = state.suitcaseApps.filter(a => a.id !== 'audio');
 
-    // Section: Whitelisted Apps (Focus Soundscape is default in lockdown and not manageable here)
+    // Section: Whitelisted Apps
     const secHeader = document.createElement('div');
     secHeader.className = 'pt-2 pb-1 flex items-center justify-between text-xs font-semibold text-outline uppercase tracking-wider';
     secHeader.innerHTML = `
@@ -1998,6 +2124,7 @@
         container.appendChild(createSuitcaseAppCard(app, true));
       });
     }
+    updateSoundscapeStatusUI();
   }
 
   function createSuitcaseAppCard(app, isCustom) {
@@ -2485,10 +2612,11 @@
     } else if (appId === 'audio') {
       if (titleEl) titleEl.innerText = 'Focus Soundscape Synthesizer';
       if (iconEl) iconEl.innerText = 'music_note';
+      const volPercent = Math.round(sound.volume * 100);
       contentEl.innerHTML = `
         <div class="flex-1 flex flex-col space-y-4">
           <div class="grid grid-cols-2 gap-2" id="soundscape-types">
-            <button class="sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="binaural">
+            <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="binaural">
               40Hz Gamma Beat
             </button>
             <button class="sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer" data-type="brown">
@@ -2504,13 +2632,13 @@
           <div>
             <div class="flex justify-between text-xs text-outline font-label-sm mb-1">
               <span>MASTER VOLUME</span>
-              <span id="vol-display">50%</span>
+              <span id="vol-display">${volPercent}%</span>
             </div>
-            <input type="range" min="0" max="100" value="50" id="sound-vol-slider" class="w-full accent-white h-1.5 bg-surface-container-highest rounded-lg cursor-pointer">
+            <input type="range" min="0" max="100" value="${volPercent}" id="sound-vol-slider" class="w-full accent-white h-1.5 bg-surface-container-highest rounded-lg cursor-pointer">
           </div>
           <button id="btn-toggle-soundscape" class="w-full py-3 rounded-full bg-primary text-on-primary font-label-md text-xs font-bold uppercase tracking-wider hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer">
-            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
-            <span id="soundscape-btn-label">Start Soundscape</span>
+            <span class="material-symbols-outlined text-[18px]">${sound.isPlaying ? 'stop' : 'play_arrow'}</span>
+            <span id="soundscape-btn-label">${sound.isPlaying ? 'Stop Soundscape' : 'Start Soundscape'}</span>
           </button>
         </div>
       `;
@@ -2523,6 +2651,9 @@
       const volDisplay = document.getElementById('vol-display');
 
       chips.forEach(chip => {
+        if (chip.getAttribute('data-type') === sound.currentSound) {
+          chip.className = 'sound-chip p-2.5 rounded-lg bg-white text-black font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
+        }
         chip.addEventListener('click', () => {
           chips.forEach(c => {
             c.className = 'sound-chip p-2.5 rounded-lg bg-surface-container text-outline hover:text-white font-label-sm text-xs font-semibold text-center transition-all cursor-pointer';
@@ -2535,6 +2666,9 @@
             sound.startSoundscape(type);
           } else {
             sound.currentSound = type;
+          }
+          if (typeof updateSoundscapeStatusUI === 'function') {
+            updateSoundscapeStatusUI();
           }
         });
       });
@@ -2553,11 +2687,13 @@
           hapticFeedback(25);
           if (sound.isPlaying) {
             sound.stopSoundscape();
-            if (label) label.innerText = 'Start Soundscape';
             toggleBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">play_arrow</span><span>Start Soundscape</span>`;
           } else {
             sound.startSoundscape();
             toggleBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">stop</span><span>Stop Soundscape</span>`;
+          }
+          if (typeof updateSoundscapeStatusUI === 'function') {
+            updateSoundscapeStatusUI();
           }
         });
       }
@@ -3797,6 +3933,7 @@
   renderSuitcaseTab();
   renderTowerTab();
   renderRoutinesTab();
+  updateSoundscapeStatusUI();
 
   if (state.isLocked && state.lockSecondsRemaining > 0) {
     enterLockoutScreen();

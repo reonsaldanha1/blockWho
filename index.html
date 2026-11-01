@@ -587,6 +587,10 @@
             </div>
           </div>
           <div class="flex items-center gap-space-sm">
+            <button class="w-8 h-8 rounded-full bg-surface-container-highest hover:bg-surface-variant flex items-center justify-center shrink-0 cursor-pointer active:scale-95 transition-all shadow-sm group relative border border-white/5" id="btn-header-soundscape" title="Focus Soundscape Synthesizer">
+              <span class="material-symbols-outlined text-primary text-[18px] group-hover:scale-110 transition-transform" id="header-soundscape-icon">music_note</span>
+              <span class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black animate-pulse" id="header-soundscape-dot"></span>
+            </button>
             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-highest cursor-pointer hover:bg-surface-variant active:scale-95 transition-all" id="btn-header-parachute" title="Emergency Eject Available">
               <img src="eject-seat.png" alt="Emergency Eject" class="w-4 h-4 object-contain select-none">
               <span class="font-label-sm text-label-sm text-primary font-bold" id="top-parachute-count">1</span>
@@ -741,16 +745,19 @@
                 </div>
                 <span class="font-label-sm text-label-sm text-outline" id="focus-suitcase-fraction">0/0</span>
               </div>
-              <!-- Suitcase Mini Preview -->
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-xl bg-[#181920] border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-sm" title="Focus Soundscape (Default System Tool)">
-                  <span class="material-symbols-outlined text-[17px]">music_note</span>
+              <!-- Interactive Soundscape Quick-Launch Item -->
+              <button id="btn-quick-soundscape" class="w-full flex items-center justify-between p-2 rounded-xl bg-surface-container hover:bg-white/10 border border-white/5 transition-all text-left group cursor-pointer" title="Open Focus Soundscape">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-[#181920] border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-sm group-hover:scale-105 transition-transform" id="quick-soundscape-icon-box">
+                    <span class="material-symbols-outlined text-[17px]" id="quick-soundscape-icon">music_note</span>
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="text-xs font-semibold text-primary group-hover:text-white transition-colors">Soundscape</span>
+                    <span class="text-[10px] text-outline" id="quick-soundscape-status">Binaural & Noise Synth</span>
+                  </div>
                 </div>
-                <div class="flex flex-col">
-                  <span class="text-xs font-semibold text-primary">Soundscape Built-in</span>
-                  <span class="text-[10px] text-outline">Default in lockdown</span>
-                </div>
-              </div>
+                <span id="quick-soundscape-pill" class="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider group-hover:bg-primary group-hover:text-black transition-all">Play</span>
+              </button>
               <button class="w-full py-1.5 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm uppercase hover:bg-surface-variant text-center transition-colors cursor-pointer" id="btn-pack-suitcase-trigger">
                 Manage Suitcase
               </button>
