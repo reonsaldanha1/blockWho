@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 /**
  * Central shared preferences manager.
  * Bridges state between the WebView JS layer and native Android services
- * (AccessibilityService, ForegroundService) that cannot access localStorage.
+ * (AccessibilityService, ForegroundService, RoutineAlarmReceiver) that cannot access localStorage.
  */
 object SharedPrefsManager {
 
@@ -19,6 +19,7 @@ object SharedPrefsManager {
     const val KEY_PARACHUTES_COUNT = "parachutes_count"
     const val KEY_OWN_PACKAGE = "own_package"
     const val KEY_STRICT_MODE = "strict_mode"
+    const val KEY_ROUTINES_JSON = "routines_json"
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -67,6 +68,13 @@ object SharedPrefsManager {
 
     fun isStrictMode(ctx: Context): Boolean =
         prefs(ctx).getBoolean(KEY_STRICT_MODE, true)
+
+    fun setRoutinesJson(ctx: Context, json: String) {
+        prefs(ctx).edit().putString(KEY_ROUTINES_JSON, json).apply()
+    }
+
+    fun getRoutinesJson(ctx: Context): String =
+        prefs(ctx).getString(KEY_ROUTINES_JSON, "") ?: ""
 
     fun clearSession(ctx: Context) {
         prefs(ctx).edit()

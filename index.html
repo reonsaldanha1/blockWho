@@ -1052,10 +1052,27 @@
               <span class="font-label-sm text-label-sm text-outline uppercase tracking-widest">Autonomous Cycles</span>
               <h2 class="font-headline-md text-headline-md text-primary font-bold">Routines</h2>
             </div>
-            <button class="px-3 py-1.5 rounded-full bg-primary text-on-primary font-label-sm text-xs font-bold uppercase hover:bg-primary-container transition-colors flex items-center gap-1" id="btn-add-routine-modal">
+            <button class="px-3 py-1.5 rounded-full bg-primary text-on-primary font-label-sm text-xs font-bold uppercase hover:bg-primary-container transition-colors flex items-center gap-1 cursor-pointer" id="btn-add-routine-modal">
               <span class="material-symbols-outlined text-[15px]">add</span>
               <span>New</span>
             </button>
+          </div>
+
+          <!-- Routine Automation Engine Status Card -->
+          <div class="p-3.5 rounded-xl bg-surface-container-low border border-white/5 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <span class="material-symbols-outlined text-[18px]">motion_photos_auto</span>
+              </div>
+              <div>
+                <div class="text-xs font-semibold text-white">Automated Focus Engine</div>
+                <div class="text-[10px] text-outline" id="routines-engine-status">Active · Auto-locks when scheduled time arrives</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-high border border-white/5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="font-label-sm text-[10px] text-emerald-400 font-semibold" id="active-routines-count">0 Active</span>
+            </div>
           </div>
 
           <div class="space-y-2.5" id="routines-container">
@@ -1093,6 +1110,20 @@
   </div><!-- End desktop-wrapper -->
 
   <!-- ==================== MODAL OVERLAYS ==================== -->
+  <!-- Automatic Routine Trigger Banner / Toast -->
+  <div class="fixed top-4 left-4 right-4 z-[130] pointer-events-none transition-all duration-300 transform -translate-y-28 opacity-0" id="routine-trigger-toast">
+    <div class="w-full max-w-sm mx-auto p-4 rounded-2xl bg-surface-container-high/95 backdrop-blur-xl border border-emerald-400/50 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center gap-3 pointer-events-auto">
+      <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-400 shrink-0 animate-pulse">
+        <span class="material-symbols-outlined text-[22px]">alarm_on</span>
+      </div>
+      <div class="flex-1">
+        <span class="text-[9px] font-label-sm uppercase tracking-widest text-emerald-400 font-bold">Autonomous Routine Activated</span>
+        <div class="text-xs font-bold text-white truncate" id="routine-toast-title">Focus Routine</div>
+        <div class="text-[10px] text-outline" id="routine-toast-sub">Lockdown initiated · Zero bypass engaged</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 00. Victory Lockout Completion Celebration Modal -->
   <div class="fixed inset-0 z-[120] bg-black/90 backdrop-blur-xl hidden items-center justify-center p-4" id="modal-lockout-complete">
     <div class="w-full max-w-sm rounded-3xl bg-surface-container-low border border-white/10 p-6 flex flex-col items-center text-center space-y-4 shadow-[0_0_60px_rgba(0,0,0,0.9)] relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
@@ -1354,11 +1385,13 @@
           <div>
             <label class="font-label-sm text-[11px] text-outline uppercase">Duration</label>
             <select id="routine-input-duration" class="w-full px-3 py-2 rounded-lg bg-surface-container text-sm text-white border border-white/10 outline-none focus:border-white">
-              <option value="25">25m (Quick)</option>
+              <option value="15">15m (Quick)</option>
+              <option value="25">25m (Pomodoro)</option>
               <option value="45">45m (Study)</option>
               <option value="60" selected>1h (Work)</option>
               <option value="90">1.5h (Deep)</option>
-              <option value="180">3h (Sanctuary)</option>
+              <option value="120">2h (Deep Work)</option>
+              <option value="180">3h (Tower Floor)</option>
             </select>
           </div>
         </div>

@@ -2926,59 +2926,263 @@
   }
 
   // ==========================================
-  // 10. SCHEDULED ROUTINES TAB
+  // 10. SCHEDULED AUTONOMOUS ROUTINES ENGINE
   // ==========================================
+
+  function formatRoutineTime(time24) {
+    if (!time24) return '';
+    const parts = time24.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
+  }
+
+  function getRoutineNextRunText(r) {
+    if (!r.active) return '<span class="text-outline/70">Paused · Toggle switch to schedule</span>';
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const currentDay = dayNames[now.getDay()];
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const parts = (r.time || '09:00').split(':');
+    const rH = parseInt(parts[0], 10) || 0;
+    const rM = parseInt(parts[1], 10) || 0;
+    const routineMinutes = rH * 60 + rM;
+
+    const formattedTime = formatRoutineTime(r.time);
+
+    // Is it scheduled for today and later today?
+    if (r.days && r.days.includes(currentDay) && routineMinutes > currentMinutes) {
+      const diffMins = routineMinutes - currentMinutes;
+      const diffH = Math.floor(diffMins / 60);
+      const diffM = diffMins % 60;
+      const inText = diffH > 0 ? `in ${diffH}h ${diffM}m` : `in ${diffM}m`;
+      return `<span class="text-emerald-400 font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Today at ${formattedTime} (${inText})</span>`;
+    }
+
+    // Find next day in sequence
+    for (let offset = 1; offset <= 7; offset++) {
+      const nextDate = new Date(now.getTime() + offset * 86400000);
+      const nextDay = dayNames[nextDate.getDay()];
+      if (r.days && r.days.includes(nextDay)) {
+        if (offset === 1) {
+          return `<span class="text-primary/90 font-medium">Tomorrow at ${formattedTime}</span>`;
+        } else {
+          return `<span class="text-primary/90 font-medium">${nextDay} at ${formattedTime}</span>`;
+        }
+      }
+    }
+
+    return `<span class="text-primary/90 font-medium">${r.days.join(', ')} at ${formattedTime}</span>`;
+  }
+
+  function syncRoutinesToNative() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.syncScheduledRoutines === 'function') {
+      try {
+        const activeRoutines = (state.routines || []).filter(r => r.active);
+        window.AndroidBridge.syncScheduledRoutines(JSON.stringify(activeRoutines));
+      } catch (e) {
+        console.warn('Failed to sync routines to native:', e);
+      }
+    }
+  }
+
+  let routineToastTimeout = null;
+  function showRoutineNotification(r) {
+    const toast = document.getElementById('routine-trigger-toast');
+    const titleEl = document.getElementById('routine-toast-title');
+    const subEl = document.getElementById('routine-toast-sub');
+    if (!toast) return;
+
+    if (titleEl) titleEl.innerText = r.name || 'Focus Cycle';
+    if (subEl) subEl.innerText = `Starting ${r.duration || 60}m zero-bypass focus lockdown`;
+
+    toast.classList.remove('opacity-0', '-translate-y-28');
+    toast.classList.add('opacity-100', 'translate-y-0');
+
+    if (routineToastTimeout) clearTimeout(routineToastTimeout);
+    routineToastTimeout = setTimeout(() => {
+      toast.classList.remove('opacity-100', 'translate-y-0');
+      toast.classList.add('opacity-0', '-translate-y-28');
+    }, 4500);
+  }
+
+  function startRoutineNow(r) {
+    if (state.isLocked) {
+      const minsLeft = Math.ceil((state.lockSecondsRemaining || 0) / 60);
+      alert(`Lockdown session is already active (${minsLeft}m remaining).`);
+      return;
+    }
+
+    sound.playChime('charge');
+    hapticFeedback(50);
+
+    // Set duration from routine
+    state.currentMinutes = r.duration || 60;
+    saveState();
+    updateTimerInterface();
+
+    showRoutineNotification(r);
+
+    // Navigate to focus screen
+    navigateToTab('focus');
+
+    // Engage lockdown smoothly
+    setTimeout(() => {
+      triggerLockdown();
+    }, 500);
+  }
+
+  function checkScheduledRoutines() {
+    if (state.isLocked) return;
+    if (!Array.isArray(state.routines) || state.routines.length === 0) return;
+
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const currentDay = dayNames[now.getDay()];
+    const currentHH = String(now.getHours()).padStart(2, '0');
+    const currentMM = String(now.getMinutes()).padStart(2, '0');
+    const currentTimeStr = `${currentHH}:${currentMM}`;
+    const todayStr = now.toISOString().slice(0, 10);
+
+    for (const r of state.routines) {
+      if (!r.active) continue;
+      if (!r.days || !r.days.includes(currentDay)) continue;
+
+      if (r.time === currentTimeStr) {
+        const triggerKey = `${r.id}_${todayStr}_${currentTimeStr}`;
+        if (state.lastTriggeredRoutineKey === triggerKey) continue;
+
+        state.lastTriggeredRoutineKey = triggerKey;
+        saveState();
+
+        console.log(`[blockWho] Scheduled routine "${r.name}" triggered at ${currentTimeStr}!`);
+        startRoutineNow(r);
+        break;
+      }
+    }
+  }
+
+  // Live interval checker every 5 seconds
+  setInterval(checkScheduledRoutines, 5000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkScheduledRoutines();
+  });
+  window.addEventListener('focus', checkScheduledRoutines);
+
+  // Native callback when Android alarm wakes up the app
+  window.onNativeRoutineTriggered = function(name, duration) {
+    if (state.isLocked) return;
+    const routine = (state.routines || []).find(r => r.name === name) || {
+      name: name || 'Scheduled Routine',
+      duration: duration || 60
+    };
+    startRoutineNow(routine);
+  };
+
   function renderRoutinesTab() {
     const container = document.getElementById('routines-container');
+    const countBadge = document.getElementById('active-routines-count');
     if (!container) return;
     container.innerHTML = '';
 
+    const activeCount = (state.routines || []).filter(r => r.active).length;
+    if (countBadge) {
+      countBadge.innerText = `${activeCount} Active`;
+    }
+
+    if (!state.routines || state.routines.length === 0) {
+      container.innerHTML = `
+        <div class="p-6 rounded-2xl bg-surface-container-low border border-white/5 text-center flex flex-col items-center justify-center space-y-2">
+          <span class="material-symbols-outlined text-4xl text-outline/50">alarm_off</span>
+          <div class="text-xs font-semibold text-white">No Routines Configured</div>
+          <p class="text-[11px] text-outline max-w-[240px]">Create an automated focus routine to establish effortless daily discipline.</p>
+        </div>
+      `;
+      return;
+    }
+
     state.routines.forEach(r => {
       const card = document.createElement('div');
-      card.className = 'p-3.5 rounded-lg bg-surface-container-low flex items-center justify-between border border-white/5';
+      card.className = 'p-4 rounded-xl bg-surface-container-low flex flex-col space-y-3 border border-white/5 transition-all shadow-sm';
       card.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
-            <span class="material-symbols-outlined text-[20px]">alarm</span>
-          </div>
-          <div>
-            <div class="font-label-md text-primary font-bold">${r.name}</div>
-            <div class="font-body-sm text-xs text-outline mt-0.5 flex items-center gap-2">
-              <span class="text-white font-mono">${r.time}</span>
-              <span>·</span>
-              <span>${r.duration}m lock</span>
-              <span>·</span>
-              <span class="text-[10px] text-primary/80">${r.days.join(', ')}</span>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full ${r.active ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' : 'bg-surface-container-high text-outline'} flex items-center justify-center shrink-0 transition-colors">
+              <span class="material-symbols-outlined text-[20px]">${r.active ? 'alarm_on' : 'alarm'}</span>
+            </div>
+            <div>
+              <div class="font-label-md text-primary font-bold text-sm tracking-tight">${r.name}</div>
+              <div class="font-body-sm text-xs text-outline mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <span class="text-white font-mono font-semibold">${formatRoutineTime(r.time)}</span>
+                <span>·</span>
+                <span>${r.duration}m lock</span>
+                <span>·</span>
+                <span class="text-[10px] text-primary/80 font-mono">${r.days.join(', ')}</span>
+              </div>
             </div>
           </div>
+          <div class="flex items-center gap-2">
+            <label class="cyber-toggle" title="${r.active ? 'Scheduled Active' : 'Disabled'}">
+              <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''}>
+              <span class="cyber-toggle-track">
+                <span class="cyber-toggle-thumb"></span>
+              </span>
+            </label>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button class="btn-delete-routine w-8 h-8 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Delete routine">
-            <span class="material-symbols-outlined text-[16px]">delete</span>
-          </button>
-          <label class="cyber-toggle" title="${r.active ? 'Scheduled Active' : 'Disabled'}">
-            <input type="checkbox" data-id="${r.id}" ${r.active ? 'checked' : ''}>
-            <span class="cyber-toggle-track">
-              <span class="cyber-toggle-thumb"></span>
-            </span>
-          </label>
+
+        <!-- Next Schedule & Run Action Bar -->
+        <div class="pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
+          <div class="text-[11px] font-label-sm">
+            ${getRoutineNextRunText(r)}
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="btn-run-routine px-3 py-1 rounded-full bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/25 text-[11px] font-label-sm font-bold uppercase flex items-center gap-1 transition-all cursor-pointer active:scale-95" data-id="${r.id}" title="Start this routine now">
+              <span class="material-symbols-outlined text-[13px]">play_arrow</span>
+              <span>Run Now</span>
+            </button>
+            <button class="btn-delete-routine w-7 h-7 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Delete routine">
+              <span class="material-symbols-outlined text-[14px]">delete</span>
+            </button>
+          </div>
         </div>
       `;
 
+      // Toggle Routine Schedule Switch
       const input = card.querySelector('input');
       input.addEventListener('change', (e) => {
         r.active = e.target.checked;
         saveState();
+        syncRoutinesToNative();
+        renderRoutinesTab();
         sound.playChime('click');
         hapticFeedback(15);
+        // Check immediately if toggled active during its scheduled minute
+        if (r.active) {
+          checkScheduledRoutines();
+        }
       });
 
+      // Run Routine Immediately
+      const runBtn = card.querySelector('.btn-run-routine');
+      if (runBtn) {
+        runBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          startRoutineNow(r);
+        });
+      }
+
+      // Delete Routine
       const delBtn = card.querySelector('.btn-delete-routine');
       if (delBtn) {
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           state.routines = state.routines.filter(item => item.id !== r.id);
           saveState();
+          syncRoutinesToNative();
           renderRoutinesTab();
           sound.playChime('click');
           hapticFeedback(20);
@@ -3050,6 +3254,7 @@
       });
 
       saveState();
+      syncRoutinesToNative();
       renderRoutinesTab();
 
       if (modalRoutine) {
@@ -3059,6 +3264,9 @@
       formRoutine.reset();
       sound.playChime('success');
       hapticFeedback(30);
+
+      // Check immediately if added for the current minute
+      checkScheduledRoutines();
     });
   }
 

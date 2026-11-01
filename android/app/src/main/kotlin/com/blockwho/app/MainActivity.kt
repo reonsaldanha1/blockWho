@@ -148,6 +148,11 @@ class MainActivity : Activity() {
             val blockedPkg = intent.getStringExtra("BLOCKED_PKG") ?: ""
             webView?.evaluateJavascript("if (typeof window.onNativeAppBlocked === 'function') { window.onNativeAppBlocked('$blockedPkg'); }", null)
         }
+        if (intent?.getBooleanExtra("FROM_ROUTINE", false) == true) {
+            val rName = intent.getStringExtra("ROUTINE_NAME") ?: "Focus Routine"
+            val rDuration = intent.getIntExtra("ROUTINE_DURATION", 60)
+            webView?.evaluateJavascript("if (typeof window.onNativeRoutineTriggered === 'function') { window.onNativeRoutineTriggered('$rName', $rDuration); }", null)
+        }
     }
 
     override fun onDestroy() {
@@ -166,6 +171,15 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun getAppVersion(): String = "2.2.0"
+
+        @JavascriptInterface
+        fun syncScheduledRoutines(routinesJson: String) {
+            try {
+                RoutineScheduler.scheduleRoutines(activity, routinesJson)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+        }
 
         @JavascriptInterface
         fun getAppIconBase64(packageName: String): String {
