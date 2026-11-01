@@ -1022,7 +1022,7 @@
     state.lockEndTime = Date.now() + (state.lockSecondsRemaining * 1000);
     saveState();
 
-    // === NATIVE BLOCKING LAYER (BlockIt-style) ===
+    // === NATIVE BLOCKING LAYER ===
     // Activate the Android AccessibilityService blocking layer.
     // Build the allowed packages list from suitcase apps that have real package names.
     if (window.AndroidBridge && typeof window.AndroidBridge.startBlockingSession === 'function') {
@@ -1649,7 +1649,7 @@
     e.preventDefault();
     if (!state.isLocked) return;
 
-    // === ZERO EMERGENCY EJECTS = NO EXIT (BlockIt strict mode) ===
+    // === ZERO EMERGENCY EJECTS = NO EXIT (Strict mode) ===
     if (state.parachutesCount <= 0) {
       hapticFeedback(30);
       if (chuteLabel) {

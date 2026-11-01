@@ -1,8 +1,8 @@
-# 🛡️ blockWho v2.0.0 — Real App Blocking (BlockIt-Style)
+# 🛡️ blockWho v2.0.0 — Real App Blocking Architecture
 
 Welcome to the major release of **blockWho v2.0.0**! 🚀
 
-This update transforms **blockWho** into a true, real-world Android app blocker replicating the enforcement architecture of the **BlockIt** app from Google Play ([com.hypenet.focused](https://play.google.com/store/apps/details?id=com.hypenet.focused)).
+This update transforms **blockWho** into a true, real-world Android app blocker with zero-bypass system-level lockdown.
 
 ---
 
@@ -25,7 +25,7 @@ This update transforms **blockWho** into a true, real-world Android app blocker 
 
 #### 4. 🪂 Zero-Parachute Hard Lock
 - When your parachute count reaches zero, emergency escape is completely disabled.
-- True BlockIt-style discipline to break addictive phone usage habits.
+- True zero-bypass discipline to break addictive phone usage habits.
 
 #### 5. 🛡️ Permission Onboarding System
 - First-launch permission modal clearly explaining and linking to the 4 required permissions:
