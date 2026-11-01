@@ -3372,24 +3372,10 @@
   if (btnClosePermissionsModal) btnClosePermissionsModal.addEventListener('click', dismissPermissionsModal);
 
   // ==========================================
-  // 13. PROFILE & SYSTEM SETTINGS MODAL
+  // 13. SETTINGS MODAL
   // ==========================================
   function updateProfileResetVisibility() {
-    const btnReset = document.getElementById('btn-reset-app-data');
-    const msgLocked = document.getElementById('profile-reset-locked-msg');
-    if (state && state.isLocked) {
-      if (btnReset) btnReset.classList.add('hidden');
-      if (msgLocked) {
-        msgLocked.classList.remove('hidden');
-        msgLocked.classList.add('flex');
-      }
-    } else {
-      if (btnReset) btnReset.classList.remove('hidden');
-      if (msgLocked) {
-        msgLocked.classList.add('hidden');
-        msgLocked.classList.remove('flex');
-      }
-    }
+    // Reset app data option removed per user request
   }
 
   const btnHeaderProfile = document.getElementById('btn-header-profile');
@@ -3455,19 +3441,6 @@
     });
   }
 
-  const btnResetAppData = document.getElementById('btn-reset-app-data');
-  if (btnResetAppData) {
-    btnResetAppData.addEventListener('click', () => {
-      if (state && state.isLocked) {
-        alert('Resetting app data and streak is strictly prohibited during active lockdown mode.');
-        return;
-      }
-      if (confirm('Are you sure you want to reset all streak progress, routines, and app data? This cannot be undone.')) {
-        localStorage.clear();
-        location.reload();
-      }
-    });
-  }
 
   // ==========================================
   // 14. EMERGENCY EJECT INFO DIALOG
