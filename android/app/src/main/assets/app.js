@@ -3151,6 +3151,9 @@
               <span class="material-symbols-outlined text-[13px]">play_arrow</span>
               <span>Run Now</span>
             </button>
+            <button class="btn-edit-routine w-7 h-7 rounded-full bg-surface-container-high hover:bg-white/10 hover:text-primary text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Edit routine">
+              <span class="material-symbols-outlined text-[14px]">edit</span>
+            </button>
             <button class="btn-delete-routine w-7 h-7 rounded-full bg-surface-container-high hover:bg-error/20 hover:text-error text-outline flex items-center justify-center transition-colors cursor-pointer" data-id="${r.id}" title="Delete routine">
               <span class="material-symbols-outlined text-[14px]">delete</span>
             </button>
@@ -3182,6 +3185,15 @@
         });
       }
 
+      // Edit Routine
+      const editBtn = card.querySelector('.btn-edit-routine');
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openEditRoutineModal(r);
+        });
+      }
+
       // Delete Routine
       const delBtn = card.querySelector('.btn-delete-routine');
       if (delBtn) {
@@ -3206,8 +3218,74 @@
   const btnCloseRoutineModal = document.getElementById('btn-close-routine-modal');
   const formRoutine = document.getElementById('form-routine');
 
+  function setDayChipActive(chip, isActive) {
+    if (isActive) {
+      chip.classList.add('active', 'bg-white', 'text-black');
+      chip.classList.remove('bg-surface-container-high', 'text-white', 'text-outline');
+    } else {
+      chip.classList.remove('active', 'bg-white', 'text-black');
+      chip.classList.add('bg-surface-container-high', 'text-outline');
+      chip.classList.remove('text-white');
+    }
+  }
+
+  function resetRoutineModal() {
+    const modalTitle = document.getElementById('modal-routine-title');
+    const editIdInput = document.getElementById('routine-edit-id');
+    const submitBtn = document.getElementById('btn-routine-submit');
+    const nameInput = document.getElementById('routine-input-name');
+    const timeInput = document.getElementById('routine-input-time');
+    const durationInput = document.getElementById('routine-input-duration');
+
+    if (modalTitle) modalTitle.textContent = 'New Routine';
+    if (editIdInput) editIdInput.value = '';
+    if (submitBtn) submitBtn.textContent = 'Save Routine';
+    if (nameInput) nameInput.value = '';
+    if (timeInput) timeInput.value = '09:00';
+    if (durationInput) durationInput.value = '60';
+
+    const defaultDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    document.querySelectorAll('.day-chip').forEach(chip => {
+      const day = chip.getAttribute('data-day');
+      setDayChipActive(chip, defaultDays.includes(day));
+    });
+  }
+
+  function openEditRoutineModal(routine) {
+    const modalRoutine = document.getElementById('modal-routine');
+    const modalTitle = document.getElementById('modal-routine-title');
+    const editIdInput = document.getElementById('routine-edit-id');
+    const submitBtn = document.getElementById('btn-routine-submit');
+    const nameInput = document.getElementById('routine-input-name');
+    const timeInput = document.getElementById('routine-input-time');
+    const durationInput = document.getElementById('routine-input-duration');
+
+    if (modalTitle) modalTitle.textContent = 'Edit Routine';
+    if (editIdInput) editIdInput.value = routine.id;
+    if (submitBtn) submitBtn.textContent = 'Update Routine';
+    if (nameInput) nameInput.value = routine.name;
+    if (timeInput) timeInput.value = routine.time;
+    if (durationInput) {
+      durationInput.value = routine.duration.toString();
+    }
+
+    const routineDays = routine.days || [];
+    document.querySelectorAll('.day-chip').forEach(chip => {
+      const day = chip.getAttribute('data-day');
+      setDayChipActive(chip, routineDays.includes(day));
+    });
+
+    if (modalRoutine) {
+      modalRoutine.classList.remove('hidden');
+      modalRoutine.classList.add('flex');
+      sound.playChime('click');
+      hapticFeedback(15);
+    }
+  }
+
   if (btnAddRoutineModal) {
     btnAddRoutineModal.addEventListener('click', () => {
+      resetRoutineModal();
       if (modalRoutine) {
         modalRoutine.classList.remove('hidden');
         modalRoutine.classList.add('flex');
@@ -3229,11 +3307,8 @@
   // Day chip toggles in routine modal
   document.querySelectorAll('.day-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      chip.classList.toggle('active');
-      chip.classList.toggle('bg-white');
-      chip.classList.toggle('text-black');
-      chip.classList.toggle('text-white');
-      chip.classList.toggle('bg-surface-container-high');
+      const isNowActive = !chip.classList.contains('active');
+      setDayChipActive(chip, isNowActive);
       sound.playChime('click');
       hapticFeedback(10);
     });
@@ -3242,6 +3317,7 @@
   if (formRoutine) {
     formRoutine.addEventListener('submit', (e) => {
       e.preventDefault();
+      const editId = document.getElementById('routine-edit-id')?.value;
       const name = document.getElementById('routine-input-name').value;
       const time = document.getElementById('routine-input-time').value;
       const duration = parseInt(document.getElementById('routine-input-duration').value, 10);
@@ -3250,15 +3326,26 @@
       document.querySelectorAll('.day-chip.active').forEach(c => {
         activeDays.push(c.getAttribute('data-day'));
       });
+      const finalDays = activeDays.length > 0 ? activeDays : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
-      state.routines.push({
-        id: 'r_' + Date.now(),
-        name: name || 'Focus Cycle',
-        time: time || '09:00',
-        duration: duration || 60,
-        days: activeDays.length > 0 ? activeDays : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-        active: true
-      });
+      if (editId) {
+        const existing = state.routines.find(item => item.id === editId);
+        if (existing) {
+          existing.name = name || 'Focus Cycle';
+          existing.time = time || '09:00';
+          existing.duration = duration || 60;
+          existing.days = finalDays;
+        }
+      } else {
+        state.routines.push({
+          id: 'r_' + Date.now(),
+          name: name || 'Focus Cycle',
+          time: time || '09:00',
+          duration: duration || 60,
+          days: finalDays,
+          active: true
+        });
+      }
 
       saveState();
       syncRoutinesToNative();
@@ -3269,10 +3356,11 @@
         modalRoutine.classList.remove('flex');
       }
       formRoutine.reset();
+      resetRoutineModal();
       sound.playChime('success');
       hapticFeedback(30);
 
-      // Check immediately if added for the current minute
+      // Check immediately if added/updated for the current minute
       checkScheduledRoutines();
     });
   }
