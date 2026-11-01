@@ -40,6 +40,13 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Lock orientation strictly to portrait (disable landscape/horizontal mode)
+        try {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+
         // OLED midnight status and navigation bar styling with safe fallbacks
         try {
             window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)

@@ -9,6 +9,13 @@
 (function () {
   'use strict';
 
+  // Lock portrait orientation and disable horizontal/landscape mode
+  try {
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.lock === 'function') {
+      window.screen.orientation.lock('portrait').catch(() => {});
+    }
+  } catch (e) {}
+
   // ==========================================
   // 1. DATA STATE & PERSISTENCE
   // ==========================================
