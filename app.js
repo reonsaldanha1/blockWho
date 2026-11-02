@@ -294,14 +294,27 @@
           if (!this.isPlaying || this.currentSound !== 'lofi_ambient') return;
           const now = this.ctx.currentTime;
           
-          activeOscs.forEach(o => {
+          const dyingOscs = activeOscs;
+          activeOscs = [];
+          dyingOscs.forEach(o => {
             try {
-              o.gain.gain.setValueAtTime(o.gain.gain.value, now);
-              o.gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+              o.gain.gain.setValueAtTime(Math.max(0.0001, o.gain.gain.value), now);
+              o.gain.gain.linearRampToValueAtTime(0.0001, now + 2.5);
               o.osc.stop(now + 2.6);
             } catch (e) {}
           });
-          activeOscs = [];
+          setTimeout(() => {
+            dyingOscs.forEach(o => {
+              try {
+                o.osc.disconnect();
+                o.gain.disconnect();
+              } catch (e) {}
+              const i1 = this.nodes.indexOf(o.osc);
+              if (i1 !== -1) this.nodes.splice(i1, 1);
+              const i2 = this.nodes.indexOf(o.gain);
+              if (i2 !== -1) this.nodes.splice(i2, 1);
+            });
+          }, 2800);
 
           freqs.forEach((freq, idx) => {
             const osc = this.ctx.createOscillator();
@@ -420,12 +433,15 @@
           const peak = 0.35 + Math.random() * 0.25;
           const dur = 3 + Math.random() * 2.5;
           try {
-            thundGain.gain.setValueAtTime(thundGain.gain.value, now);
-            thundGain.gain.exponentialRampToValueAtTime(peak, now + dur * 0.3);
-            thundGain.gain.exponentialRampToValueAtTime(0.04, now + dur);
-            rumbleGain.gain.setValueAtTime(rumbleGain.gain.value, now);
-            rumbleGain.gain.exponentialRampToValueAtTime(0.18, now + dur * 0.3);
-            rumbleGain.gain.exponentialRampToValueAtTime(0.03, now + dur);
+            const startVal1 = Math.max(0.001, thundGain.gain.value);
+            thundGain.gain.setValueAtTime(startVal1, now);
+            thundGain.gain.linearRampToValueAtTime(peak, now + dur * 0.3);
+            thundGain.gain.linearRampToValueAtTime(0.04, now + dur);
+
+            const startVal2 = Math.max(0.001, rumbleGain.gain.value);
+            rumbleGain.gain.setValueAtTime(startVal2, now);
+            rumbleGain.gain.linearRampToValueAtTime(0.18, now + dur * 0.3);
+            rumbleGain.gain.linearRampToValueAtTime(0.03, now + dur);
           } catch (e) {}
         };
         triggerThunder();
@@ -1956,7 +1972,31 @@
   function completeLockoutSession() {
     const sessionHours = state.lockTotalSeconds / 3600;
     state.tower.totalFocusHours = Math.round(((state.tower.totalFocusHours || 0) + sessionHours) * 10) / 10;
-    state.tower.streakDays = (state.tower.streakDays || 0) + 1;
+
+    // Calendar-based consecutive streak calculation (daily unique days)
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    const lastActive = state.tower.lastActiveDate;
+
+    if (!lastActive) {
+      state.tower.streakDays = 1;
+      state.tower.lastActiveDate = todayIso;
+    } else if (lastActive === todayIso) {
+      if (!state.tower.streakDays || state.tower.streakDays < 1) {
+        state.tower.streakDays = 1;
+      }
+    } else {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+      if (lastActive === yesterdayIso) {
+        state.tower.streakDays = (state.tower.streakDays || 0) + 1;
+      } else {
+        state.tower.streakDays = 1;
+      }
+      state.tower.lastActiveDate = todayIso;
+    }
 
     // Minimum 3 hours required to build a floor
     const earnedFloorsCount = Math.floor(state.tower.totalFocusHours / MIN_HOURS_PER_FLOOR);
@@ -2105,9 +2145,10 @@
         streakWarning.classList.add('text-error');
       }
       
-      // Decrement emergency eject
+      // Decrement emergency eject and set 7-day replenish window
       if (state.parachutesCount > 0) {
         state.parachutesCount--;
+        state.parachuteReplenishMs = Date.now() + (7 * 24 * 60 * 60 * 1000);
       }
       saveState();
       updateParachuteCounters();
@@ -2146,13 +2187,42 @@
     window.addEventListener('touchend', cancelChuteHold);
   }
 
+  function checkAndReplenishParachutes() {
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    if (state.parachutesCount <= 0) {
+      if (!state.parachuteReplenishMs) {
+        state.parachuteReplenishMs = Date.now() + SEVEN_DAYS_MS;
+        saveState();
+      } else if (Date.now() >= state.parachuteReplenishMs) {
+        state.parachutesCount = 1;
+        delete state.parachuteReplenishMs;
+        saveState();
+      }
+    } else {
+      if (state.parachuteReplenishMs) {
+        delete state.parachuteReplenishMs;
+        saveState();
+      }
+    }
+  }
+
   function updateParachuteCounters() {
+    checkAndReplenishParachutes();
     const topCount = document.getElementById('top-parachute-count');
     const cardLeft = document.getElementById('card-parachute-left');
     const lockBadge = document.getElementById('lock-eject-badge');
 
     if (topCount) topCount.innerText = state.parachutesCount;
-    if (cardLeft) cardLeft.innerText = `${state.parachutesCount} left`;
+    if (cardLeft) {
+      if (state.parachutesCount > 0) {
+        cardLeft.innerText = `${state.parachutesCount} left`;
+        cardLeft.className = 'font-label-sm text-label-sm text-on-error-container bg-error-container/40 px-1.5 py-0.5 rounded-full';
+      } else {
+        const daysLeft = Math.max(1, Math.ceil(((state.parachuteReplenishMs || (Date.now() + 7 * 86400000)) - Date.now()) / (24 * 3600 * 1000)));
+        cardLeft.innerText = `0 left (${daysLeft}d to reset)`;
+        cardLeft.className = 'font-label-sm text-[10px] text-outline bg-surface-container px-1.5 py-0.5 rounded-full';
+      }
+    }
     if (lockBadge) lockBadge.innerText = `${state.parachutesCount} Left This Cycle`;
   }
 
@@ -3340,6 +3410,20 @@
     if (!stack) return;
     stack.innerHTML = '';
 
+    // Check if streak was broken (last active date was before yesterday)
+    if (state.tower.lastActiveDate) {
+      const today = new Date();
+      const todayIso = today.toISOString().slice(0, 10);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+      if (state.tower.lastActiveDate !== todayIso && state.tower.lastActiveDate !== yesterdayIso) {
+        state.tower.streakDays = 0;
+        saveState();
+      }
+    }
+
     const streakEl = document.getElementById('tower-streak-number');
     const floorsEl = document.getElementById('tower-floors-total');
     const hoursEl = document.getElementById('tower-hours-total');
@@ -3446,7 +3530,8 @@
     if (!f) return;
     if (nameEl) nameEl.innerText = `Floor ${f.floor}: ${f.mode}`;
     const durStr = f.duration >= 60 ? `${(f.duration / 60).toFixed(1)} Hours` : `${f.duration} Minutes`;
-    if (detailsEl) detailsEl.innerText = `Constructed ${f.date} · ${durStr} (Min 3h requirement met) · ${f.parachutes} Emergency Ejects Used`;
+    const parachutesUsed = f.parachutes ?? 0;
+    if (detailsEl) detailsEl.innerText = `Constructed ${f.date} · ${durStr} (Min 3h requirement met) · ${parachutesUsed} Emergency Ejects Used`;
   }
 
   // ==========================================

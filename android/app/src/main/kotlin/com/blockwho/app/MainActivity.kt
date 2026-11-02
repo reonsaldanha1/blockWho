@@ -96,6 +96,10 @@ class MainActivity : Activity() {
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                     return false
                 }
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    handleIntent(intent)
+                }
             }
 
             wv.webChromeClient = object : WebChromeClient() {
@@ -148,18 +152,23 @@ class MainActivity : Activity() {
     }
 
     
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent?.getBooleanExtra("FROM_BLOCKER", false) == true) {
+    private fun handleIntent(intent: Intent?) {
+        intent ?: return
+        if (intent.getBooleanExtra("FROM_BLOCKER", false)) {
             val blockedPkg = intent.getStringExtra("BLOCKED_PKG") ?: ""
             webView?.evaluateJavascript("if (typeof window.onNativeAppBlocked === 'function') { window.onNativeAppBlocked('$blockedPkg'); }", null)
         }
-        if (intent?.getBooleanExtra("FROM_ROUTINE", false) == true) {
+        if (intent.getBooleanExtra("FROM_ROUTINE", false)) {
             val rName = intent.getStringExtra("ROUTINE_NAME") ?: "Focus Routine"
             val rDuration = intent.getIntExtra("ROUTINE_DURATION", 60)
             webView?.evaluateJavascript("if (typeof window.onNativeRoutineTriggered === 'function') { window.onNativeRoutineTriggered('$rName', $rDuration); }", null)
         }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
     }
 
     override fun onDestroy() {
